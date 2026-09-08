@@ -12,13 +12,11 @@ Repository initialized: 2026-09-05T17:57:38.9336838+02:00
 - No private credentials copied.
 - No prior proprietary implementation copied.
 
-## Current implementation status
+## Historical bootstrap status
+
+The initial repository root commit recorded the following status at initialization time. It is historical, not current:
 
 SR-00A IN PROGRESS
-
-## Future milestone provenance
-
-Dated provenance entries for future milestones will be recorded in this section.
 
 ## Milestone records
 
@@ -48,3 +46,15 @@ Validation:
 - NPM_LS=PASS
 - NPM_AUDIT_HIGH=PASS
 - GIT_DIFF_CHECK=PASS
+
+### 2026-09-08T12:27:49.7303960+02:00
+
+SCENEREADY-SR-00B-FIX1
+STATUS=COMPLETE
+TYPESCRIPT=6.0.2
+WINDOWS_TSC=6.0.2
+LINUX_TSC=6.0.2
+
+## Current implementation status
+
+SR-00B COMPLETE

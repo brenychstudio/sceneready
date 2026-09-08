@@ -1,5 +1,5 @@
 # Open-Source Contribution
 
-SceneReady is the primary open-source hackathon project.
+SceneReady is the primary clean-room open-source hackathon project.
 
-A reusable MCP Human Authority package is planned for clean-room implementation later under packages/mcp-human-authority/. That package does not exist at this bootstrap stage, and this document makes no claim that it is implemented or operational.
+`packages/mcp-human-authority/` exists only as empty SR-00 monorepo scaffolding. No reusable MCP Human Authority functionality is implemented yet, and this document makes no operational capability claim. Implementation remains planned for SR-04.
