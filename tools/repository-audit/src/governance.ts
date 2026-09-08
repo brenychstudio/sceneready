@@ -41,9 +41,7 @@ export async function assertGovernanceFiles(root: string): Promise<GovernanceAud
       content: await readGovernanceFile(root, path),
     })),
   );
-  const missing = contents
-    .filter(({ content }) => content === null)
-    .map(({ path }) => path);
+  const missing = contents.filter(({ content }) => content === null).map(({ path }) => path);
   const license = contents.find(({ path }) => path === 'LICENSE')?.content ?? '';
   const cleanRoomStatement =
     contents.find(({ path }) => path === 'docs/submission/HACKATHON-WORK.md')?.content ?? '';

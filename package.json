@@ -1,19 +1,44 @@
 {
-  "name": "sceneready",
+  "name": "@sceneready/root",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22 <23"
   },
+  "packageManager": "npm@10.9.8",
+  "workspaces": [
+    "apps/*",
+    "apps/mcp-runtime/ui",
+    "packages/*",
+    "services/*",
+    "infrastructure/*",
+    "tools/*"
+  ],
   "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b",
     "test": "vitest run",
-    "test:governance": "vitest run tools/repository-audit/src/governance.test.ts"
+    "test:governance": "vitest run tools/repository-audit/src/governance.test.ts",
+    "lint": "eslint . --max-warnings=0",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run test && npm run lint && npm run format:check && npm run build",
+    "audit:public-boundary": "tsx tools/repository-audit/src/public-boundary.ts",
+    "audit:claims": "tsx tools/evidence-report/src/claim-audit.ts",
+    "eval:all": "tsx packages/evals/src/run-all.ts",
+    "replay:certify": "tsx tools/replay-cli/src/certify.ts",
+    "release:audit": "tsx tools/release-audit/src/index.ts",
+    "postinstall": "node scripts/link-native-tsc.mjs"
   },
   "devDependencies": {
-    "@types/node": "26.4.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.10.0",
+    "prettier": "3.9.6",
     "tsx": "4.23.13",
-    "typescript": "7.0.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript-7": "npm:typescript@7.0.2",
+    "typescript-eslint": "8.70.0",
     "vitest": "5.0.0"
   }
 }

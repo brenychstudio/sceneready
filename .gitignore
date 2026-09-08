@@ -7,3 +7,9 @@ dist/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
+cdk.out/
+artifacts/local/
+.vite/
+playwright-report/
+test-results/

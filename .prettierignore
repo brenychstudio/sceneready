@@ -1,0 +1,13 @@
+LICENSE
+NOTICE
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+docs/submission/**
+package-lock.json
+node_modules
+dist
+coverage
+artifacts
+cdk.out
+*.tsbuildinfo

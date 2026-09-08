@@ -32,7 +32,9 @@ async function writeFixture(root: string, path: string, content: string): Promis
 }
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })));
+  await Promise.all(
+    temporaryRoots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })),
+  );
 });
 
 describe('assertGovernanceFiles', () => {
