@@ -237,14 +237,6 @@ function matchesPackage(specifier: string, packageName: string): boolean {
   return specifier === packageName || specifier.startsWith(`${packageName}/`);
 }
 
-function isBedrockOrAgentCore(specifier: string): boolean {
-  if (specifier.startsWith('@sceneready/')) {
-    return false;
-  }
-  const lower = specifier.toLowerCase();
-  return lower.includes('bedrock') || lower.includes('agentcore') || lower.includes('agent-core');
-}
-
 function classifyPureForbidden(specifier: string): DependencyBoundaryViolationCode | undefined {
   if (
     matchesPackage(specifier, 'aws-cdk-lib') ||
@@ -263,11 +255,7 @@ function classifyPureForbidden(specifier: string): DependencyBoundaryViolationCo
   if (matchesPackage(specifier, '@modelcontextprotocol')) {
     return 'PURE_PACKAGE_IMPORTS_MCP_RUNTIME';
   }
-  if (
-    matchesPackage(specifier, '@aws-sdk') ||
-    matchesPackage(specifier, 'aws-sdk') ||
-    isBedrockOrAgentCore(specifier)
-  ) {
+  if (matchesPackage(specifier, '@aws-sdk') || matchesPackage(specifier, 'aws-sdk')) {
     return 'PURE_PACKAGE_IMPORTS_AWS';
   }
   return undefined;

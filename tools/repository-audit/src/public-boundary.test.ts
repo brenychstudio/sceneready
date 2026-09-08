@@ -416,6 +416,27 @@ describe('auditPublicBoundary', () => {
     expectNoWholeSecret(apiKeyResult, apiKey);
   });
 
+  it('rejects generic Windows drive-absolute paths independent of first directory', async () => {
+    const cWork = ['C:', '\\work\\', 'repo'].join('');
+    const dVault = ['D:', '\\vault\\', 'secret.txt'].join('');
+    const eSource = ['E:', '/source/', 'repo'].join('');
+    const zAnything = ['Z:', '/anything/', 'private.txt'].join('');
+
+    const cResult = await auditSynthetic('synthetic/c-work.txt', `backup ${cWork}\n`);
+    const dResult = await auditSynthetic('synthetic/d-vault.txt', `backup ${dVault}\n`);
+    const eResult = await auditSynthetic('synthetic/e-source.txt', `backup ${eSource}\n`);
+    const zResult = await auditSynthetic('synthetic/z-anything.txt', `backup ${zAnything}\n`);
+
+    expect(cResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
+    expect(dResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
+    expect(eResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
+    expect(zResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
+    expectNoWholeSecret(cResult, cWork);
+    expectNoWholeSecret(dResult, dVault);
+    expectNoWholeSecret(eResult, eSource);
+    expectNoWholeSecret(zResult, zAnything);
+  });
+
   it('detects Windows private absolute paths on C, D, and Z drives', async () => {
     const cUsers = ['C:', '\\Users\\', 'alice\\appdata\\secret.txt'].join('');
     const dProjects = ['D:', '\\Projects\\', 'clients\\acme\\ledger.txt'].join('');
@@ -447,6 +468,12 @@ describe('auditPublicBoundary', () => {
     expect(dResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
     expectNoWholeSecret(cResult, cUsers);
     expectNoWholeSecret(dResult, dProjects);
+
+    const zVault = ['Z:', '/vault/', 'secret.txt'].join('');
+    const zUrl = ['file:///', zVault].join('');
+    const zResult = await auditSynthetic('synthetic/file-url-z-vault.txt', `open ${zUrl}\n`);
+    expect(zResult.violations.map((item) => item.code)).toEqual(['PRIVATE_FILESYSTEM_PATH']);
+    expectNoWholeSecret(zResult, zVault);
   });
 
   it('rejects a POSIX home private path inside a local file URL', async () => {
@@ -470,7 +497,7 @@ describe('auditPublicBoundary', () => {
   it('allows ordinary HTTPS pathnames that only resemble Windows private paths', async () => {
     const result = await auditSynthetic(
       'docs/https-windows-like.md',
-      'See https://example.com/C:/documentation\nSee https://example.com/C:/Users/reference\n',
+      'See https://example.com/C:/documentation\nSee https://example.com/Z:/reference/file.txt\nSee https://example.com/C:/Users/reference\nSee https://example.com/path/Users/reference\n',
     );
 
     expect(result.violations).toEqual([]);

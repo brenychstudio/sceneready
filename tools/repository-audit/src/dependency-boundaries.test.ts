@@ -110,19 +110,38 @@ describe('auditDependencyBoundaries', () => {
     ]);
   });
 
-  it('rejects a Bedrock/AgentCore runtime import from a pure package as AWS', async () => {
+  it('does not treat a speculative non-AWS bedrock-named runtime as a forbidden family', async () => {
     const result = await auditFiles({
       'packages/readiness-engine/src/index.ts': `import { Runtime } from '@amazon-bedrock-agentcore/sdk';\n`,
+    });
+
+    expect(result.violations).toEqual([]);
+  });
+
+  it('does not reject unrelated packages whose names contain bedrock or agentcore', async () => {
+    const result = await auditFiles({
+      'packages/domain/src/bedrock.ts': `import {} from '@example/bedrock-tools';\n`,
+      'packages/domain/src/agentcore.ts': `import {} from '@example/agentcore-utils';\n`,
+      'packages/domain/src/agent-core.ts': `import {} from '@example/agent-core-helper';\n`,
+      'packages/domain/src/helper.ts': `import {} from 'bedrock-helper';\n`,
+    });
+
+    expect(result.violations).toEqual([]);
+  });
+
+  it('rejects an AWS Bedrock SDK package through the AWS family rule', async () => {
+    const result = await auditFiles({
+      'packages/readiness-engine/src/bedrock.ts': `import {} from '@aws-sdk/client-bedrock-runtime';\n`,
     });
 
     expect(result.violations).toEqual([
       violation({
         code: 'PURE_PACKAGE_IMPORTS_AWS',
-        path: 'packages/readiness-engine/src/index.ts',
+        path: 'packages/readiness-engine/src/bedrock.ts',
         line: 1,
-        moduleSpecifier: '@amazon-bedrock-agentcore/sdk',
+        moduleSpecifier: '@aws-sdk/client-bedrock-runtime',
         message:
-          "Pure package @sceneready/readiness-engine must not import AWS family module '@amazon-bedrock-agentcore/sdk'.",
+          "Pure package @sceneready/readiness-engine must not import AWS family module '@aws-sdk/client-bedrock-runtime'.",
       }),
     ]);
   });

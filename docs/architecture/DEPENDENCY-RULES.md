@@ -40,14 +40,21 @@ This set is encoded as `LOCKED_PURE_PACKAGES` in
 
 Locked pure packages must not import or declare the following families.
 
-| Family                      | Implemented match                                                                        | Violation code                     |
-| --------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------- |
-| AWS SDK                     | `@aws-sdk/*`, `aws-sdk`                                                                  | `PURE_PACKAGE_IMPORTS_AWS`         |
-| Bedrock / AgentCore runtime | non-`@sceneready` specifiers whose names include `bedrock`, `agentcore`, or `agent-core` | `PURE_PACKAGE_IMPORTS_AWS`         |
-| CDK coupling                | `aws-cdk-lib`, `aws-cdk`, `@aws-cdk/*`, `constructs`                                     | `PURE_PACKAGE_IMPORTS_CDK`         |
-| Strands                     | `@strands-agents/*`                                                                      | `PURE_PACKAGE_IMPORTS_STRANDS`     |
-| React                       | `react`, `react-dom`                                                                     | `PURE_PACKAGE_IMPORTS_REACT`       |
-| MCP runtime                 | `@modelcontextprotocol/*`                                                                | `PURE_PACKAGE_IMPORTS_MCP_RUNTIME` |
+| Family       | Implemented match                                    | Violation code                     |
+| ------------ | ---------------------------------------------------- | ---------------------------------- |
+| AWS SDK      | `@aws-sdk/*`, `aws-sdk`                              | `PURE_PACKAGE_IMPORTS_AWS`         |
+| CDK coupling | `aws-cdk-lib`, `aws-cdk`, `@aws-cdk/*`, `constructs` | `PURE_PACKAGE_IMPORTS_CDK`         |
+| Strands      | `@strands-agents/*`                                  | `PURE_PACKAGE_IMPORTS_STRANDS`     |
+| React        | `react`, `react-dom`                                 | `PURE_PACKAGE_IMPORTS_REACT`       |
+| MCP runtime  | `@modelcontextprotocol/*`                            | `PURE_PACKAGE_IMPORTS_MCP_RUNTIME` |
+
+Matching uses explicit package identities or explicit package-family prefixes
+only. Package names are not classified by generic substring search.
+
+AWS Bedrock and AgentCore SDK packages are forbidden only because they are
+`@aws-sdk/*` modules, for example `@aws-sdk/client-bedrock-runtime`. Arbitrary
+package names that merely contain `bedrock`, `agentcore`, or `agent-core` are
+not forbidden unless they independently match one of the families above.
 
 Enforcement applies to both:
 
@@ -118,12 +125,13 @@ Implemented behavior:
 - High-confidence credential shapes: AWS access-key ids, Bearer tokens, PEM
   private-key blocks, and obvious non-placeholder password / API-key
   assignments.
-- Private filesystem paths: Windows drive-letter `Users` and `PROJECTS`
-  locations (any drive letter), POSIX `/home/<name>/` and `/Users/<name>/`,
-  including those same locations embedded in local `file:` URLs.
+- Private filesystem paths: any standalone Windows drive-absolute path (a drive
+  letter, a colon, then `\` or `/`, then a path; any drive letter; any first
+  directory), POSIX `/home/<name>/` and `/Users/<name>/`, and those same
+  locations when embedded in local `file:` URLs.
 - Ordinary network URL pathnames (for example `https://`) are not treated as
-  local filesystem paths merely because a pathname segment resembles `Users` or
-  `home`.
+  local filesystem paths merely because a pathname segment resembles a drive
+  path, `Users`, or `home`. `file:` URLs are local filesystem context.
 - High-confidence personal data: international `+` phone numbers of realistic
   length, and email-like addresses except reserved public-safe domains
   (`example.com`, `example.net`, `example.org`, and `*.invalid` / `*.test` /

@@ -31,8 +31,7 @@ export const REAL_PHONE_PATTERN = /(?<![A-Za-z0-9+/])\+[1-9]\d{7,14}(?![A-Za-z0-
 export const REAL_EMAIL_PATTERN =
   /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
-export const WINDOWS_PRIVATE_PATH_PATTERN =
-  /(?<![A-Za-z0-9])[A-Za-z]:[\\/](?:PROJECTS|Users)(?:[\\/][^\s'"`]+)?/gi;
+export const WINDOWS_PRIVATE_PATH_PATTERN = /(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s'"`]+/g;
 
 export const POSIX_PRIVATE_PATH_PATTERN =
   /(?<![A-Za-z0-9])\/(?:home|Users)\/([A-Za-z0-9._-]+)(?:\/[^\s'"`]*)?/g;
