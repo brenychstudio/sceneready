@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Strict validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify workspace layout
+        run: node scripts/assert-workspace-layout.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit public repository boundary
+        run: npm run audit:public-boundary
+
+      - name: Audit dependency boundaries
+        run: npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts
+
+      - name: Verify dependency tree
+        run: npm ls --all
+
+      - name: Audit npm vulnerabilities
+        run: npm audit --audit-level=high

@@ -1,0 +1,75 @@
+name: Baseline release audit
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    name: Baseline certification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify workspace layout
+        run: node scripts/assert-workspace-layout.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit public repository boundary
+        run: npm run audit:public-boundary
+
+      - name: Audit dependency boundaries
+        run: npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts
+
+      - name: Audit npm vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Generate CycloneDX SBOM
+        run: npm sbom --sbom-format=cyclonedx > sceneready-sbom.cdx.json
+
+      - name: Validate CycloneDX SBOM
+        run: >-
+          node --eval "const fs=require('node:fs'); const p='sceneready-sbom.cdx.json'; if
+          (fs.statSync(p).size===0) throw new Error('empty SBOM'); const
+          sbom=JSON.parse(fs.readFileSync(p,'utf8')); if (sbom.bomFormat!=='CycloneDX') throw
+          new Error('SBOM is not CycloneDX');"
+
+      - name: Upload baseline release audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneready-baseline-release-audit
+          path: sceneready-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
