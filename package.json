@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && npm run typecheck:test --workspaces --if-present",
     "test": "vitest run",
     "test:governance": "vitest run tools/repository-audit/src/governance.test.ts",
     "lint": "eslint . --max-warnings=0",
