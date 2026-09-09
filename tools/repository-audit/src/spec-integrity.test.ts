@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -27,11 +28,47 @@ function sha256Hex(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
 }
 
+function gitEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_INDEX_FILE;
+  delete env.GIT_OBJECT_DIRECTORY;
+  delete env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
+  env.GIT_TERMINAL_PROMPT = '0';
+  return env;
+}
+
 function readRaw(relativePath: string): Buffer {
   const absolutePath = join(repositoryRoot, relativePath);
   expect(existsSync(absolutePath), `missing authority file: ${relativePath}`).toBe(true);
   return readFileSync(absolutePath);
 }
+
+function gitTextAttribute(relativePath: string): string {
+  const stdout = execFileSync('git', ['check-attr', 'text', '--', relativePath], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 30_000,
+    env: gitEnv(),
+  });
+  const line = stdout.trim();
+  const match = /: text: (.+)$/.exec(line);
+  expect(match, `unexpected git check-attr output for ${relativePath}: ${line}`).not.toBeNull();
+  return match?.[1] ?? '';
+}
+
+describe('frozen authority checkout policy', () => {
+  it('declares the three checksum-frozen paths as Git non-text so checkout cannot rewrite EOL', () => {
+    for (const relativePath of [DESIGN_PATH, BRIEF_PATH, INTERPRETATIONS_PATH]) {
+      expect(
+        gitTextAttribute(relativePath),
+        `expected git check-attr text -- ${relativePath} to report text: unset because the path must be declared -text`,
+      ).toBe('unset');
+    }
+  });
+});
 
 describe('approved design authority integrity', () => {
   it('freezes Canonical Design v1.0 at the approved byte identity', () => {
