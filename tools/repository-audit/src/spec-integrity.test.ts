@@ -12,6 +12,9 @@ const BRIEF_PATH = 'docs/superpowers/specs/2026-09-04-sceneready-competition-bri
 const INTERPRETATIONS_PATH =
   'docs/superpowers/specs/2026-09-04-sceneready-implementation-interpretations-v1.0.md';
 const INDEX_PATH = 'docs/architecture/ARCHITECTURE-INDEX.md';
+const HACKATHON_WORK_PATH = 'docs/submission/HACKATHON-WORK.md';
+const SR00C_ACCEPTED_HEAD = '2a3167ce2655fc548cde7d0e3a586f769ff8958a';
+const SR00D_ACCEPTED_HEAD = '95e2949cdd6bc1be31ba3c11a582c335b2271e44';
 
 const DESIGN_BYTES = 11051;
 const DESIGN_SHA256 = 'f54b5d562c437c6ea3c342795a1ee264e038fb99f2ebe5f1e7d885827e3e22e5';
@@ -83,5 +86,23 @@ describe('architecture authority index', () => {
     const text = readRaw(INDEX_PATH).toString('utf8');
     expect(text).toContain('v0.0.0-design');
     expect(text).toMatch(/pending first public repository push/i);
+  });
+});
+
+describe('hackathon provenance continuity', () => {
+  it('records accepted SR-00C, SR-00D, and SR-00E heads in canonical order', () => {
+    const text = readRaw(HACKATHON_WORK_PATH).toString('utf8');
+    expect(text).toContain('SCENEREADY-SR-00C');
+    expect(text).toContain(SR00C_ACCEPTED_HEAD);
+    expect(text).toContain('SCENEREADY-SR-00D');
+    expect(text).toContain(SR00D_ACCEPTED_HEAD);
+    expect(text).toContain('SCENEREADY-SR-00E');
+
+    const sr00c = text.indexOf('SCENEREADY-SR-00C');
+    const sr00d = text.indexOf('SCENEREADY-SR-00D');
+    const sr00e = text.indexOf('SCENEREADY-SR-00E');
+    expect(sr00c).toBeGreaterThan(-1);
+    expect(sr00d).toBeGreaterThan(sr00c);
+    expect(sr00e).toBeGreaterThan(sr00d);
   });
 });

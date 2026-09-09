@@ -55,6 +55,41 @@ TYPESCRIPT=6.0.2
 WINDOWS_TSC=6.0.2
 LINUX_TSC=6.0.2
 
+### SR-00C canonical acceptance
+
+SCENEREADY-SR-00C
+STATUS=CANONICAL_ACCEPTED
+ACCEPTED_HEAD=2a3167ce2655fc548cde7d0e3a586f769ff8958a
+RECORDED_DURING_SR00E=YES
+
+This provenance record was appended during SR-00E completion. Git history
+remains the original timestamp authority.
+
+SR-00C established:
+
+- dependency boundary enforcement;
+- public repository boundary enforcement.
+
+### SR-00D canonical acceptance
+
+SCENEREADY-SR-00D
+STATUS=CANONICAL_ACCEPTED
+ACCEPTED_HEAD=95e2949cdd6bc1be31ba3c11a582c335b2271e44
+RECORDED_DURING_SR00E=YES
+
+This provenance record was appended during SR-00E completion. Git history
+remains the original timestamp authority.
+
+SR-00D established:
+
+- strict GitHub CI contract;
+- security workflow;
+- CycloneDX SBOM evidence;
+- baseline release-audit workflow;
+- Claim-to-Evidence and friction-log foundation.
+
+Remote GitHub workflow execution is not claimed.
+
 ### 2026-09-09
 
 SCENEREADY-SR-00E
