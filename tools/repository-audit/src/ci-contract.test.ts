@@ -10,6 +10,7 @@ const securityWorkflowPath = join(repositoryRoot, '.github/workflows/security.ym
 const releaseAuditWorkflowPath = join(repositoryRoot, '.github/workflows/release-audit.yml');
 const claimToEvidencePath = join(repositoryRoot, 'docs/submission/CLAIM-TO-EVIDENCE.md');
 const frictionLogPath = join(repositoryRoot, 'docs/submission/FRICTION-LOG.md');
+const dependencyRulesPath = join(repositoryRoot, 'docs/architecture/DEPENDENCY-RULES.md');
 
 const MANDATORY_COMMANDS = [
   'npm ci',
@@ -478,6 +479,14 @@ describe('submission evidence documents', () => {
     expect(text).toMatch(/PENDING FIRST PUBLIC CI RUN/);
   });
 
+  it('states clean-room public-ready status without claiming public publication', () => {
+    const text = readFileSync(claimToEvidencePath, 'utf8');
+    expect(text).toMatch(/clean-room public-ready competition repository/i);
+    expect(text).not.toMatch(/SceneReady is a clean-room public project/);
+    expect(text).toMatch(/local\/canonical repository/i);
+    expect(text).toMatch(/Public GitHub publication/i);
+  });
+
   it('has a friction log with required future entry fields and no invented Amazon/AWS entry', () => {
     expect(existsSync(frictionLogPath)).toBe(true);
     const text = readFileSync(frictionLogPath, 'utf8');
@@ -486,5 +495,20 @@ describe('submission evidence documents', () => {
     }
     expect(text).toMatch(/append-only/i);
     expect(text).toMatch(/no qualifying Amazon\/AWS friction entry has yet been recorded/i);
+  });
+});
+
+describe('dependency rules documentation truth', () => {
+  it('documents current GitHub workflows without stale future-CI wording', () => {
+    expect(existsSync(dependencyRulesPath)).toBe(true);
+    const text = readFileSync(dependencyRulesPath, 'utf8');
+    expect(text).toContain('.github/workflows/ci.yml');
+    expect(text).toContain('.github/workflows/security.yml');
+    expect(text).toContain('.github/workflows/release-audit.yml');
+    expect(text).not.toMatch(/SR-00D will wire/i);
+    expect(text).not.toMatch(/does not currently claim that those GitHub workflows exist/i);
+    expect(text).toMatch(/PENDING FIRST PUBLIC CI RUN/);
+    expect(text).not.toMatch(/remote GitHub (?:run|execution) (?:succeeded|success|passed)/i);
+    expect(text).not.toMatch(/first public CI run (?:succeeded|passed)/i);
   });
 });

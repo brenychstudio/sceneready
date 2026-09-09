@@ -178,15 +178,28 @@ warning-only competition mode.
   with a distinct non-zero code. Dependency analysis failures throw
   `DependencyBoundaryAnalysisError`. Both fail closed.
 
-## 8. Future CI Boundary
+## 8. GitHub CI Boundary
 
-SR-00C provides repository audit primitives and tests:
+SR-00C created the repository audit primitives and tests:
 
 - `auditDependencyBoundaries`
 - `auditPublicBoundary`
 - `npm run audit:public-boundary`
 - focused Vitest files under `tools/repository-audit/src`
 
-SR-00D will wire them into GitHub CI and security workflows.
+SR-00D wires those guards into committed GitHub Actions workflows that now exist
+in repository source:
 
-This repository does not currently claim that those GitHub workflows exist.
+- `.github/workflows/ci.yml` — pull-request and `main` strict validation
+- `.github/workflows/security.yml` — public-boundary and dependency-boundary
+  checks, `npm audit --audit-level=high`, CycloneDX SBOM generation and
+  validation, and the `sceneready-security-evidence` baseline security artifact
+- `.github/workflows/release-audit.yml` — manual `workflow_dispatch` baseline
+  build and security certification only
+
+Remote GitHub execution proof is PENDING FIRST PUBLIC CI RUN. The release-audit
+workflow is not final competition release certification. Immutable GitHub
+Actions SHA pinning remains pending release hardening.
+
+These workflows do not certify AWS deployment, Alexa proof, production
+operation, or an immutable competition release.
