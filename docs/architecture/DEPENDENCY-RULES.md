@@ -64,8 +64,9 @@ Enforcement applies to both:
 
 Root toolchain manifests and non-pure workspaces are not subject to these
 family bans. A manifest finding is omitted when source in the same workspace
-already reports the same forbidden family, so one coupling is not double-counted
-as both an import and a declaration.
+already reports the same forbidden module specifier, so one coupling is not
+double-counted as both an import and a declaration. Importing one forbidden
+package does not hide a different forbidden package in the same family.
 
 ## 4. Workspace Import Rules
 
@@ -73,8 +74,11 @@ Cross-workspace imports must use public `@sceneready/*` package entry points.
 
 Implemented rules:
 
-- No `@sceneready` deep imports through `src` or `dist` subpaths
-  (`SCENEREADY_DEEP_IMPORT`).
+- No `@sceneready` deep imports into a known workspace subpath
+  (`SCENEREADY_DEEP_IMPORT`). Current workspace `exports` expose only `"."`, so
+  any specifier of the form `@sceneready/<workspace>/<subpath>` is treated as
+  private. Public roots such as `@sceneready/domain` remain allowed. Similarly
+  named external packages are not classified as SceneReady workspaces.
 - No relative filesystem escape into another workspace
   (`CROSS_WORKSPACE_RELATIVE_IMPORT`).
 - `packages/*` must not import `apps/*` source, including public app workspace
@@ -101,13 +105,22 @@ Handled forms:
 - dynamic `import()` with a static string literal
 - `require()` with a static string literal
 
+Source files are parsed with the compiler `ScriptKind` that matches the file
+type: `.ts` / `.mts` / `.cts` / `.d.ts` as `TS`, `.tsx` as `TSX`, `.js` /
+`.mjs` / `.cjs` as `JS`, and `.jsx` as `JSX`. After `ts.createSourceFile()`,
+parse diagnostics are inspected. TypeScript or JavaScript syntax parse errors
+fail closed with `DependencyBoundaryAnalysisError`. This is syntax-analysis
+integrity only; it does not run `tsc`.
+
 If a dynamic or import-type module specifier is not a string literal, analysis
 fails closed with `DependencyBoundaryAnalysisError`. Invalid package manifests
 also fail closed.
 
-Real-repository analysis walks TypeScript sources and `package.json` files,
-skipping generated trees such as `node_modules`, `dist`, `coverage`, and
-`cdk.out`. Tests may supply an in-memory file map instead.
+Real-repository analysis walks JS and TS source-family files (`.ts`, `.tsx`,
+`.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`), declaration sources (`.d.ts`),
+and `package.json` files, skipping generated trees such as `node_modules`,
+`dist`, `coverage`, and `cdk.out`. Tests may supply an in-memory file map
+instead.
 
 Violations are sorted by path, then line, then code, then module specifier.
 Paths are repository-relative with forward slashes.

@@ -1,7 +1,9 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   auditDependencyBoundaries,
@@ -12,10 +14,31 @@ import {
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const VIRTUAL_ROOT = '/virtual-sceneready';
+const temporaryRoots: string[] = [];
 
 async function auditFiles(files: Record<string, string>): Promise<DependencyBoundaryAuditResult> {
   return auditDependencyBoundaries(VIRTUAL_ROOT, { files });
 }
+
+async function createTemporaryRoot(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'sceneready-dependency-boundary-'));
+  temporaryRoots.push(root);
+  return root;
+}
+
+async function writeTree(root: string, files: Record<string, string>): Promise<void> {
+  for (const [relativePath, content] of Object.entries(files)) {
+    const absolutePath = join(root, relativePath);
+    await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, content, 'utf8');
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryRoots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })),
+  );
+});
 
 function violation(partial: DependencyBoundaryViolation): DependencyBoundaryViolation {
   return partial;
@@ -161,6 +184,65 @@ describe('auditDependencyBoundaries', () => {
           "Cross-workspace import must use a public @sceneready/* entry point, not deep import '@sceneready/evidence/src/index.js'.",
       }),
     ]);
+  });
+
+  it('rejects an @sceneready dist deep import', async () => {
+    const result = await auditFiles({
+      'packages/production-graph/src/index.ts': `import {} from '@sceneready/replay/dist/index.js';\n`,
+    });
+
+    expect(result.violations).toEqual([
+      violation({
+        code: 'SCENEREADY_DEEP_IMPORT',
+        path: 'packages/production-graph/src/index.ts',
+        line: 1,
+        moduleSpecifier: '@sceneready/replay/dist/index.js',
+        message:
+          "Cross-workspace import must use a public @sceneready/* entry point, not deep import '@sceneready/replay/dist/index.js'.",
+      }),
+    ]);
+  });
+
+  it('rejects an @sceneready workspace subpath import to internal.js', async () => {
+    const result = await auditFiles({
+      'packages/production-graph/src/index.ts': `import {} from '@sceneready/domain/internal.js';\n`,
+    });
+
+    expect(result.violations).toEqual([
+      violation({
+        code: 'SCENEREADY_DEEP_IMPORT',
+        path: 'packages/production-graph/src/index.ts',
+        line: 1,
+        moduleSpecifier: '@sceneready/domain/internal.js',
+        message:
+          "Cross-workspace import must use a public @sceneready/* entry point, not deep import '@sceneready/domain/internal.js'.",
+      }),
+    ]);
+  });
+
+  it('rejects an @sceneready workspace subpath import to a private schema', async () => {
+    const result = await auditFiles({
+      'packages/production-graph/src/index.ts': `import {} from '@sceneready/evidence/private/schema.js';\n`,
+    });
+
+    expect(result.violations).toEqual([
+      violation({
+        code: 'SCENEREADY_DEEP_IMPORT',
+        path: 'packages/production-graph/src/index.ts',
+        line: 1,
+        moduleSpecifier: '@sceneready/evidence/private/schema.js',
+        message:
+          "Cross-workspace import must use a public @sceneready/* entry point, not deep import '@sceneready/evidence/private/schema.js'.",
+      }),
+    ]);
+  });
+
+  it('does not reject a similarly named external package subpath', async () => {
+    const result = await auditFiles({
+      'packages/domain/src/index.ts': `import {} from '@example/domain/internal.js';\n`,
+    });
+
+    expect(result.violations).toEqual([]);
   });
 
   it('rejects a cross-workspace relative escape', async () => {
@@ -332,6 +414,14 @@ describe('auditDependencyBoundaries', () => {
     ).rejects.toBeInstanceOf(DependencyBoundaryAnalysisError);
   });
 
+  it('fails closed when parsed source contains a syntax error', async () => {
+    await expect(
+      auditFiles({
+        'packages/domain/src/broken.ts': 'const malformed = {\n',
+      }),
+    ).rejects.toBeInstanceOf(DependencyBoundaryAnalysisError);
+  });
+
   it('rejects an unused AWS dependency declared in a pure package manifest', async () => {
     const result = await auditFiles({
       'packages/domain/package.json': packageManifest('@sceneready/domain', {
@@ -429,7 +519,7 @@ describe('auditDependencyBoundaries', () => {
     ]);
   });
 
-  it('does not emit a duplicate manifest finding when source already reports the same forbidden family', async () => {
+  it('does not emit a duplicate manifest finding when source already reports the same forbidden module specifier', async () => {
     const result = await auditFiles({
       'packages/domain/package.json': packageManifest('@sceneready/domain', {
         dependencies: { '@aws-sdk/client-s3': '3.0.0' },
@@ -438,6 +528,20 @@ describe('auditDependencyBoundaries', () => {
     });
 
     expect(result.violations.map((item) => [item.path, item.code, item.moduleSpecifier])).toEqual([
+      ['packages/domain/src/index.ts', 'PURE_PACKAGE_IMPORTS_AWS', '@aws-sdk/client-s3'],
+    ]);
+  });
+
+  it('does not suppress a different AWS package declared in the same manifest', async () => {
+    const result = await auditFiles({
+      'packages/domain/package.json': packageManifest('@sceneready/domain', {
+        dependencies: { '@aws-sdk/client-dynamodb': '3.0.0' },
+      }),
+      'packages/domain/src/index.ts': `import { S3Client } from '@aws-sdk/client-s3';\n`,
+    });
+
+    expect(result.violations.map((item) => [item.path, item.code, item.moduleSpecifier])).toEqual([
+      ['packages/domain/package.json', 'PURE_PACKAGE_IMPORTS_AWS', '@aws-sdk/client-dynamodb'],
       ['packages/domain/src/index.ts', 'PURE_PACKAGE_IMPORTS_AWS', '@aws-sdk/client-s3'],
     ]);
   });
@@ -475,6 +579,77 @@ describe('auditDependencyBoundaries', () => {
     });
 
     expect(result.violations).toEqual([]);
+  });
+
+  it('rejects a forbidden React import from real JS source during filesystem walking', async () => {
+    const root = await createTemporaryRoot();
+    await writeTree(root, {
+      'packages/domain/src/escape.js': `import React from 'react';\n`,
+    });
+
+    const result = await auditDependencyBoundaries(root);
+
+    expect(result.violations).toEqual([
+      violation({
+        code: 'PURE_PACKAGE_IMPORTS_REACT',
+        path: 'packages/domain/src/escape.js',
+        line: 1,
+        moduleSpecifier: 'react',
+        message: "Pure package @sceneready/domain must not import React family module 'react'.",
+      }),
+    ]);
+  });
+
+  it('rejects a forbidden AWS import from real declaration source during filesystem walking', async () => {
+    const root = await createTemporaryRoot();
+    await writeTree(root, {
+      'packages/domain/src/types.d.ts': `import type { S3Client } from '@aws-sdk/client-s3';\n`,
+    });
+
+    const result = await auditDependencyBoundaries(root);
+
+    expect(result.violations).toEqual([
+      violation({
+        code: 'PURE_PACKAGE_IMPORTS_AWS',
+        path: 'packages/domain/src/types.d.ts',
+        line: 1,
+        moduleSpecifier: '@aws-sdk/client-s3',
+        message:
+          "Pure package @sceneready/domain must not import AWS family module '@aws-sdk/client-s3'.",
+      }),
+    ]);
+  });
+
+  it('accepts a safe JS source during filesystem walking', async () => {
+    const root = await createTemporaryRoot();
+    await writeTree(root, {
+      'packages/domain/src/safe.js': `import {} from '@sceneready/evidence';\nexport const ready = true;\n`,
+    });
+
+    const result = await auditDependencyBoundaries(root);
+
+    expect(result.violations).toEqual([]);
+  });
+
+  it('detects forbidden dependencies in remaining JS and TS source-family files during filesystem walking', async () => {
+    const root = await createTemporaryRoot();
+    await writeTree(root, {
+      'packages/domain/src/escape.cjs': `const React = require('react');\nmodule.exports = { React };\n`,
+      'packages/domain/src/escape.cts': `import React from 'react';\n`,
+      'packages/domain/src/escape.jsx': `import React from 'react';\n`,
+      'packages/domain/src/escape.mjs': `import React from 'react';\n`,
+      'packages/domain/src/escape.mts': `import React from 'react';\n`,
+    });
+
+    const result = await auditDependencyBoundaries(root);
+
+    expect(result.violations.map((item) => [item.path, item.code, item.moduleSpecifier])).toEqual([
+      ['packages/domain/src/escape.cjs', 'PURE_PACKAGE_IMPORTS_REACT', 'react'],
+      ['packages/domain/src/escape.cts', 'PURE_PACKAGE_IMPORTS_REACT', 'react'],
+      ['packages/domain/src/escape.jsx', 'PURE_PACKAGE_IMPORTS_REACT', 'react'],
+      ['packages/domain/src/escape.mjs', 'PURE_PACKAGE_IMPORTS_REACT', 'react'],
+      ['packages/domain/src/escape.mts', 'PURE_PACKAGE_IMPORTS_REACT', 'react'],
+    ]);
   });
 
   it('reports zero violations for the current repository', async () => {

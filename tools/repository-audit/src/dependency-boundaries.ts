@@ -212,12 +212,17 @@ function workspaceForPath(path: string): LockedWorkspace | undefined {
   return undefined;
 }
 
-function isTypeScriptSource(name: string): boolean {
-  if (name.endsWith('.d.ts')) {
-    return false;
-  }
+function isAnalyzableSource(name: string): boolean {
   return (
-    name.endsWith('.ts') || name.endsWith('.tsx') || name.endsWith('.mts') || name.endsWith('.cts')
+    name.endsWith('.d.ts') ||
+    name.endsWith('.tsx') ||
+    name.endsWith('.ts') ||
+    name.endsWith('.mts') ||
+    name.endsWith('.cts') ||
+    name.endsWith('.jsx') ||
+    name.endsWith('.js') ||
+    name.endsWith('.mjs') ||
+    name.endsWith('.cjs')
   );
 }
 
@@ -227,8 +232,15 @@ function isPackageManifestPath(path: string): boolean {
 }
 
 function scriptKindFor(path: string): ts.ScriptKind {
-  if (path.endsWith('.tsx')) {
+  const normalized = normalizeRepoPath(path);
+  if (normalized.endsWith('.tsx')) {
     return ts.ScriptKind.TSX;
+  }
+  if (normalized.endsWith('.jsx')) {
+    return ts.ScriptKind.JSX;
+  }
+  if (normalized.endsWith('.js') || normalized.endsWith('.mjs') || normalized.endsWith('.cjs')) {
+    return ts.ScriptKind.JS;
   }
   return ts.ScriptKind.TS;
 }
@@ -300,17 +312,11 @@ function scenereadyPackageName(specifier: string): string | undefined {
 }
 
 function isDeepScenereadyImport(specifier: string): boolean {
-  const match = /^@sceneready\/[^/]+\/(.+)$/.exec(specifier);
-  const subpath = match?.[1];
-  if (subpath === undefined) {
+  const packageName = scenereadyPackageName(specifier);
+  if (packageName === undefined || !WORKSPACE_BY_NAME.has(packageName)) {
     return false;
   }
-  return (
-    subpath === 'src' ||
-    subpath === 'dist' ||
-    subpath.startsWith('src/') ||
-    subpath.startsWith('dist/')
-  );
+  return specifier.startsWith(`${packageName}/`);
 }
 
 function layerCodeFor(layer: WorkspaceLayer): DependencyBoundaryViolationCode | undefined {
@@ -552,26 +558,49 @@ function analyzePurePackageManifest(path: string, content: string): DependencyBo
   return violations;
 }
 
-function suppressDuplicateManifestFamilies(
+function suppressDuplicateManifestSpecifiers(
   sourceViolations: readonly DependencyBoundaryViolation[],
   manifestViolations: readonly DependencyBoundaryViolation[],
 ): DependencyBoundaryViolation[] {
-  const sourceFamilies = new Set<string>();
+  const sourceSpecifiers = new Set<string>();
   for (const item of sourceViolations) {
     const workspace = workspaceForPath(item.path);
-    if (workspace === undefined) {
+    if (workspace === undefined || item.moduleSpecifier === null) {
       continue;
     }
-    sourceFamilies.add(`${workspace.directory}\0${item.code}`);
+    sourceSpecifiers.add(`${workspace.directory}\0${item.code}\0${item.moduleSpecifier}`);
   }
 
   return manifestViolations.filter((item) => {
     const workspace = workspaceForPath(item.path);
-    if (workspace === undefined) {
+    if (workspace === undefined || item.moduleSpecifier === null) {
       return true;
     }
-    return !sourceFamilies.has(`${workspace.directory}\0${item.code}`);
+    return !sourceSpecifiers.has(`${workspace.directory}\0${item.code}\0${item.moduleSpecifier}`);
   });
+}
+
+interface ParsedSourceFile extends ts.SourceFile {
+  readonly parseDiagnostics: readonly ts.Diagnostic[];
+}
+
+function parseDiagnosticsOf(sourceFile: ts.SourceFile): readonly ts.Diagnostic[] {
+  if (!('parseDiagnostics' in sourceFile)) {
+    throw new DependencyBoundaryAnalysisError(
+      sourceFile.fileName,
+      'TypeScript parser did not expose parse diagnostics',
+    );
+  }
+
+  const diagnostics = (sourceFile as ParsedSourceFile).parseDiagnostics;
+  if (!Array.isArray(diagnostics)) {
+    throw new DependencyBoundaryAnalysisError(
+      sourceFile.fileName,
+      'TypeScript parser did not expose parse diagnostics',
+    );
+  }
+
+  return diagnostics;
 }
 
 function analyzeFile(path: string, content: string): DependencyBoundaryViolation[] {
@@ -589,6 +618,16 @@ function analyzeFile(path: string, content: string): DependencyBoundaryViolation
       path,
       `TypeScript parser failed: ${errorMessage(error)}`,
       error,
+    );
+  }
+
+  const syntaxError = parseDiagnosticsOf(sourceFile).find(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+  );
+  if (syntaxError !== undefined) {
+    throw new DependencyBoundaryAnalysisError(
+      path,
+      `source contains a syntax error: ${ts.flattenDiagnosticMessageText(syntaxError.messageText, ' ')}`,
     );
   }
 
@@ -647,7 +686,7 @@ function normalizeInputFiles(files: Readonly<Record<string, string>>): Map<strin
   return new Map(entries);
 }
 
-async function walkTypeScriptFiles(root: string): Promise<string[]> {
+async function walkAnalyzableFiles(root: string): Promise<string[]> {
   const files: string[] = [];
 
   const visit = async (directory: string): Promise<void> => {
@@ -670,7 +709,7 @@ async function walkTypeScriptFiles(root: string): Promise<string[]> {
         }
         continue;
       }
-      if (entry.isFile() && (isTypeScriptSource(entry.name) || entry.name === 'package.json')) {
+      if (entry.isFile() && (isAnalyzableSource(entry.name) || entry.name === 'package.json')) {
         files.push(absolutePath);
       }
     }
@@ -683,7 +722,7 @@ async function walkTypeScriptFiles(root: string): Promise<string[]> {
 
 async function readRepositorySources(root: string): Promise<Map<string, string>> {
   const resolvedRoot = resolve(root);
-  const files = await walkTypeScriptFiles(resolvedRoot);
+  const files = await walkAnalyzableFiles(resolvedRoot);
   const sources = new Map<string, string>();
 
   for (const absolutePath of files) {
@@ -724,7 +763,7 @@ export async function auditDependencyBoundaries(
     return {
       violations: sortViolations([
         ...sourceViolations,
-        ...suppressDuplicateManifestFamilies(sourceViolations, manifestViolations),
+        ...suppressDuplicateManifestSpecifiers(sourceViolations, manifestViolations),
       ]),
     };
   } catch (error) {
