@@ -13,15 +13,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function withoutName(value: unknown): unknown {
-  if (!isRecord(value) || !('name' in value)) {
-    return value;
-  }
-  const rest = { ...value };
-  delete rest.name;
-  return rest;
-}
-
 export async function loadCanonicalBarcelonaPack(): Promise<unknown> {
   const [
     manifest,
@@ -49,10 +40,6 @@ export async function loadCanonicalBarcelonaPack(): Promise<unknown> {
     throw new Error('canonical Barcelona fixture sections are malformed');
   }
 
-  const deliverableRecords = Array.isArray(deliverables)
-    ? deliverables.map(withoutName)
-    : deliverables;
-
   return {
     fixtureVersion: manifest.fixtureVersion,
     policyVersion: manifest.policyVersion,
@@ -61,7 +48,7 @@ export async function loadCanonicalBarcelonaPack(): Promise<unknown> {
     crew,
     locations,
     schedule,
-    deliverables: deliverableRecords,
+    deliverables,
     equipment: equipment.assets,
     capturePaths: equipment.capturePaths,
     rights: rights.documents,

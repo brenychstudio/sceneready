@@ -41,6 +41,7 @@ function makeMinimalValidPack(): JsonObject {
     schedule: [
       {
         id: 'ACT-01',
+        name: 'Synthetic activity',
         startLocal: '09:00',
         endLocal: '10:00',
         locationId: 'LOC-01',
@@ -54,6 +55,7 @@ function makeMinimalValidPack(): JsonObject {
     deliverables: [
       {
         id: 'DELIVERABLE-01',
+        name: 'Synthetic stills',
         importance: 'CRITICAL',
         requiredActivityIds: ['ACT-01'],
         requiredDocumentIds: ['DOC-01'],
@@ -382,6 +384,7 @@ describe('Production Pack validation', () => {
     pack.schedule = [
       {
         id: 'ACT-01',
+        name: 'Synthetic activity',
         startLocal: '11:00',
         endLocal: '12:00',
         locationId: 'LOC-01',
@@ -393,6 +396,7 @@ describe('Production Pack validation', () => {
       },
       {
         id: 'ACT-02',
+        name: 'Synthetic overlap',
         startLocal: '09:00',
         endLocal: '10:00',
         locationId: 'LOC-01',
@@ -412,6 +416,7 @@ describe('Production Pack validation', () => {
     pack.schedule = [
       {
         id: 'ACT-SETUP',
+        name: 'Synthetic setup',
         startLocal: '09:00',
         endLocal: '11:00',
         locationId: 'LOC-01',
@@ -423,6 +428,7 @@ describe('Production Pack validation', () => {
       },
       {
         id: 'ACT-SHOOT',
+        name: 'Synthetic shoot',
         startLocal: '10:00',
         endLocal: '12:00',
         locationId: 'LOC-01',
@@ -442,6 +448,7 @@ describe('Production Pack validation', () => {
     pack.schedule = [
       {
         id: 'ACT-01',
+        name: 'Synthetic activity',
         startLocal: '09:00',
         endLocal: '11:00',
         locationId: 'LOC-01',
@@ -453,6 +460,7 @@ describe('Production Pack validation', () => {
       },
       {
         id: 'ACT-02',
+        name: 'Synthetic overlap',
         startLocal: '10:00',
         endLocal: '12:00',
         locationId: 'LOC-01',

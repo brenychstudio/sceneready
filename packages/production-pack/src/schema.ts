@@ -69,6 +69,7 @@ const ActivityConstraintSchema = z.enum([
 const ActivitySchema = z
   .strictObject({
     id: PackEntityIdSchema,
+    name: z.string().min(1).max(128),
     startLocal: ProductionTimeSchema,
     endLocal: ProductionTimeSchema,
     locationId: PackEntityIdSchema,
@@ -90,6 +91,7 @@ const ActivitySchema = z
 
 const DeliverableSchema = z.strictObject({
   id: PackEntityIdSchema,
+  name: z.string().min(1).max(128),
   importance: z.enum(['CRITICAL', 'HIGH', 'MEDIUM']),
   requiredActivityIds: z.array(PackEntityIdSchema).min(1),
   requiredDocumentIds: z.array(PackEntityIdSchema),

@@ -1,14 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import { validateProductionPack } from '@sceneready/production-pack';
 
 import { loadCanonicalBarcelonaPack } from './load-fixture.js';
-
-const fixtureDir = dirname(fileURLToPath(import.meta.url));
 
 const CANONICAL_ACTIVITY_IDS = [
   'ACT-DEPART-GOTHIC',
@@ -17,6 +11,27 @@ const CANONICAL_ACTIVITY_IDS = [
   'ACT-EIXAMPLE-SETUP',
   'ACT-EIXAMPLE-LOOK-05',
   'ACT-STUDIO-LOAD-IN',
+] as const;
+
+const CANONICAL_ACTIVITY_NAMES = [
+  'Production lead preflight',
+  'Core crew call / gear load',
+  'Model + HMU preparation',
+  'Departure to Gothic',
+  'Gothic setup',
+  'Look 01',
+  'Look 02',
+  'Look 03',
+  'Gothic wrap / load-out',
+  'Transfer -> Eixample',
+  'Eixample setup',
+  'Look 04',
+  'Look 05 + motion',
+  'Eixample wrap',
+  'Transfer -> Studio',
+  'Studio load-in / digital station',
+  'Studio session begins',
+  'Backups / wrap',
 ] as const;
 
 const CANONICAL_DELIVERABLES = [
@@ -144,7 +159,7 @@ describe('BCN-DEMO-v1 fixture', () => {
     expect(result.pack.rights.some((item) => item.id === 'DOCUMENT-MODEL-RELEASE')).toBe(true);
   });
 
-  it('pins exact D1-D7 names and priorities', async () => {
+  it('pins exact D1-D7 names and priorities on the validated pack', async () => {
     const result = validateProductionPack(await loadCanonicalBarcelonaPack());
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -153,17 +168,19 @@ describe('BCN-DEMO-v1 fixture', () => {
     expect(
       result.pack.deliverables.map((item) => ({
         id: item.id,
+        name: item.name,
         importance: item.importance,
       })),
-    ).toEqual(CANONICAL_DELIVERABLES.map(({ id, importance }) => ({ id, importance })));
-    const raw = JSON.parse(await readFile(join(fixtureDir, 'deliverables.json'), 'utf8')) as {
-      readonly id: string;
-      readonly name: string;
-      readonly importance: string;
-    }[];
-    expect(
-      raw.map((item) => ({ id: item.id, name: item.name, importance: item.importance })),
     ).toEqual([...CANONICAL_DELIVERABLES]);
+  });
+
+  it('retains canonical activity names on the validated pack', async () => {
+    const result = validateProductionPack(await loadCanonicalBarcelonaPack());
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.pack.schedule.map((item) => item.name)).toEqual([...CANONICAL_ACTIVITY_NAMES]);
   });
 
   it('keeps DOCUMENT-MODEL-RELEASE missing at R0 and required by D7', async () => {
@@ -237,5 +254,13 @@ describe('BCN-DEMO-v1 fixture', () => {
     const first = await loadCanonicalBarcelonaPack();
     const second = await loadCanonicalBarcelonaPack();
     expect(first).toEqual(second);
+    const firstResult = validateProductionPack(first);
+    const secondResult = validateProductionPack(second);
+    expect(firstResult.ok).toBe(true);
+    expect(secondResult.ok).toBe(true);
+    if (!firstResult.ok || !secondResult.ok) {
+      return;
+    }
+    expect(firstResult.pack).toEqual(secondResult.pack);
   });
 });
