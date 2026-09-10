@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { DecisionPolicySchema, SCENEREADY_POLICY_V1 } from './index.js';
 
@@ -110,6 +110,57 @@ describe('decision policy v1', () => {
     expect(Object.isFrozen(SCENEREADY_POLICY_V1.recovery)).toBe(true);
     expect(Object.isFrozen(SCENEREADY_POLICY_V1.approval)).toBe(true);
     expect(Object.isFrozen(SCENEREADY_POLICY_V1.replay)).toBe(true);
+  });
+
+  it('exports a deeply readonly TypeScript type', () => {
+    expectTypeOf(SCENEREADY_POLICY_V1).toEqualTypeOf<{
+      readonly policyVersion: 'SR-POLICY-v1';
+      readonly scoringVersion: 'SR-SCORE-v1';
+      readonly graphSchemaVersion: 'SR-GRAPH-v1';
+      readonly readiness: {
+        readonly readyFloor: 85;
+        readonly atRiskFloor: 60;
+      };
+      readonly confidence: {
+        readonly certifiedFloor: 85;
+        readonly degradedFloor: 60;
+      };
+      readonly evidenceFreshnessMinutes: {
+        readonly WEATHER: 15;
+        readonly TRAVEL: 15;
+        readonly SOLAR: 1440;
+        readonly CREW_CONFIRMATION: 720;
+        readonly EQUIPMENT_VERIFICATION: 1440;
+        readonly DOCUMENT: 10080;
+        readonly LOCATION_ACCESS: 1440;
+      };
+      readonly recovery: {
+        readonly maxOptions: 3;
+        readonly maxIntroducedCriticalRisks: 0;
+        readonly maxIntroducedHighRisks: 1;
+      };
+      readonly approval: {
+        readonly challengeTtlSeconds: 180;
+        readonly tokenTtlSeconds: 120;
+      };
+      readonly replay: {
+        readonly fixtureVersion: 'BCN-DEMO-v1';
+      };
+    }>();
+
+    expectTypeOf(SCENEREADY_POLICY_V1.readiness).not.toEqualTypeOf<{
+      readyFloor: 85;
+      atRiskFloor: 60;
+    }>();
+    expectTypeOf(SCENEREADY_POLICY_V1.evidenceFreshnessMinutes).not.toEqualTypeOf<{
+      WEATHER: 15;
+      TRAVEL: 15;
+      SOLAR: 1440;
+      CREW_CONFIRMATION: 720;
+      EQUIPMENT_VERIFICATION: 1440;
+      DOCUMENT: 10080;
+      LOCATION_ACCESS: 1440;
+    }>();
   });
 
   it('rejects otherwise reasonable numeric drift under v1 identity', () => {
