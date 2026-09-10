@@ -1,5 +1,5 @@
 import type { ProductionPackValidationIssue } from './errors.js';
-import type { ProductionPack } from './schema.js';
+import { HARD_GATE_SUBJECT_TYPES, type ProductionPack } from './schema.js';
 
 export interface PackReferenceIndex {
   readonly personIds: ReadonlySet<string>;
@@ -7,7 +7,10 @@ export interface PackReferenceIndex {
   readonly activityIds: ReadonlySet<string>;
   readonly equipmentIds: ReadonlySet<string>;
   readonly documentIds: ReadonlySet<string>;
+  readonly capturePathIds: ReadonlySet<string>;
 }
+
+type SubjectType = ProductionPack['evidence'][number]['subjectType'];
 
 function pushUnknown(
   issues: ProductionPackValidationIssue[],
@@ -23,6 +26,42 @@ function pushUnknown(
   });
 }
 
+function subjectIssue(subjectType: SubjectType): {
+  readonly code: ProductionPackValidationIssue['code'];
+  readonly kind: string;
+} {
+  switch (subjectType) {
+    case 'PERSON':
+      return { code: 'UNKNOWN_PERSON_REFERENCE', kind: 'person' };
+    case 'LOCATION':
+      return { code: 'UNKNOWN_LOCATION_REFERENCE', kind: 'location' };
+    case 'ACTIVITY':
+      return { code: 'UNKNOWN_ACTIVITY_REFERENCE', kind: 'activity' };
+    case 'EQUIPMENT':
+    case 'EQUIPMENT_PATH':
+      return { code: 'UNKNOWN_EQUIPMENT_REFERENCE', kind: 'equipment' };
+    case 'DOCUMENT':
+      return { code: 'UNKNOWN_DOCUMENT_REFERENCE', kind: 'document' };
+  }
+}
+
+function subjectIds(index: PackReferenceIndex, subjectType: SubjectType): ReadonlySet<string> {
+  switch (subjectType) {
+    case 'PERSON':
+      return index.personIds;
+    case 'LOCATION':
+      return index.locationIds;
+    case 'ACTIVITY':
+      return index.activityIds;
+    case 'EQUIPMENT':
+      return index.equipmentIds;
+    case 'EQUIPMENT_PATH':
+      return index.capturePathIds;
+    case 'DOCUMENT':
+      return index.documentIds;
+  }
+}
+
 export function indexPackReferences(pack: ProductionPack): PackReferenceIndex {
   return {
     personIds: new Set(pack.crew.map((person) => person.id)),
@@ -30,6 +69,7 @@ export function indexPackReferences(pack: ProductionPack): PackReferenceIndex {
     activityIds: new Set(pack.schedule.map((activity) => activity.id)),
     equipmentIds: new Set(pack.equipment.map((asset) => asset.id)),
     documentIds: new Set(pack.rights.map((document) => document.id)),
+    capturePathIds: new Set(pack.capturePaths.map((path) => path.id)),
   };
 }
 
@@ -166,6 +206,39 @@ export function collectUnknownReferenceIssues(
         );
       }
     }
+    for (const [personIndex, personId] of deliverable.requiredPersonIds.entries()) {
+      if (!index.personIds.has(personId)) {
+        pushUnknown(
+          issues,
+          'UNKNOWN_PERSON_REFERENCE',
+          `deliverables.${deliverableIndex}.requiredPersonIds.${personIndex}`,
+          personId,
+          'person',
+        );
+      }
+    }
+    for (const [locationIndex, locationId] of deliverable.requiredLocationIds.entries()) {
+      if (!index.locationIds.has(locationId)) {
+        pushUnknown(
+          issues,
+          'UNKNOWN_LOCATION_REFERENCE',
+          `deliverables.${deliverableIndex}.requiredLocationIds.${locationIndex}`,
+          locationId,
+          'location',
+        );
+      }
+    }
+    for (const [equipmentIndex, equipmentId] of deliverable.requiredEquipmentIds.entries()) {
+      if (!index.equipmentIds.has(equipmentId)) {
+        pushUnknown(
+          issues,
+          'UNKNOWN_EQUIPMENT_REFERENCE',
+          `deliverables.${deliverableIndex}.requiredEquipmentIds.${equipmentIndex}`,
+          equipmentId,
+          'equipment',
+        );
+      }
+    }
   }
 
   for (const [pathIndex, capturePath] of pack.capturePaths.entries()) {
@@ -194,6 +267,17 @@ export function collectUnknownReferenceIssues(
   }
 
   for (const [rightsIndex, document] of pack.rights.entries()) {
+    for (const [personIndex, personId] of document.personIds.entries()) {
+      if (!index.personIds.has(personId)) {
+        pushUnknown(
+          issues,
+          'UNKNOWN_PERSON_REFERENCE',
+          `rights.${rightsIndex}.personIds.${personIndex}`,
+          personId,
+          'person',
+        );
+      }
+    }
     for (const [locationIndex, locationId] of document.locationIds.entries()) {
       if (!index.locationIds.has(locationId)) {
         pushUnknown(
@@ -207,17 +291,28 @@ export function collectUnknownReferenceIssues(
     }
   }
 
-  for (const [evidenceIndex, item] of pack.evidence.entries()) {
-    for (const [documentIndex, documentId] of item.documentIds.entries()) {
-      if (!index.documentIds.has(documentId)) {
+  for (const [gateIndex, gate] of pack.hardGates.entries()) {
+    const expectedType = HARD_GATE_SUBJECT_TYPES[gate.id];
+    const knownIds = subjectIds(index, expectedType);
+    const { code, kind } = subjectIssue(expectedType);
+    for (const [subjectIndex, subjectId] of gate.subjectIds.entries()) {
+      if (!knownIds.has(subjectId)) {
         pushUnknown(
           issues,
-          'UNKNOWN_DOCUMENT_REFERENCE',
-          `evidence.${evidenceIndex}.documentIds.${documentIndex}`,
-          documentId,
-          'document',
+          code,
+          `hardGates.${gateIndex}.subjectIds.${subjectIndex}`,
+          subjectId,
+          kind,
         );
       }
+    }
+  }
+
+  for (const [evidenceIndex, item] of pack.evidence.entries()) {
+    const knownIds = subjectIds(index, item.subjectType);
+    if (!knownIds.has(item.subjectId)) {
+      const { code, kind } = subjectIssue(item.subjectType);
+      pushUnknown(issues, code, `evidence.${evidenceIndex}.subjectId`, item.subjectId, kind);
     }
   }
 

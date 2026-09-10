@@ -1,12 +1,39 @@
-import { ProductionIdSchema } from '@sceneready/domain';
+import {
+  EvidenceTrustStateSchema,
+  ProductionIdSchema,
+  resolveZonedProductionTime,
+} from '@sceneready/domain';
 import { z } from 'zod';
 
 const PackEntityIdSchema = z.string().regex(/^[A-Z0-9][A-Z0-9-]{2,63}$/);
 const PolicyVersionSchema = z.string().regex(/^SR-POLICY-v\d+$/);
 const FixtureVersionSchema = z.string().regex(/^[A-Z0-9]+(?:-[A-Z0-9]+)*-v\d+$/);
-const ProductionDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const ProductionTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const ProductionTimeZoneSchema = z.literal('Europe/Madrid');
+
+function isCanonicalProductionDate(date: string): boolean {
+  try {
+    resolveZonedProductionTime({
+      date,
+      time: '12:00',
+      timeZone: 'Europe/Madrid',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const ProductionDateSchema = z.string().superRefine((date, ctx) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !isCanonicalProductionDate(date)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'invalid production date',
+    });
+  }
+});
+
+const NullableProductionDateSchema = z.union([ProductionDateSchema, z.null()]);
 
 const CoordinatesSchema = z.strictObject({
   latitude: z.number().gte(-90).lte(90),
@@ -17,12 +44,18 @@ const PersonSchema = z.strictObject({
   id: PackEntityIdSchema,
   role: z.string().min(1),
   name: z.string().min(1),
+  critical: z.boolean(),
 });
 
 const LocationSchema = z.strictObject({
   id: PackEntityIdSchema,
   name: z.string().min(1),
+  kind: z.enum(['EXTERIOR', 'STUDIO']),
   coordinates: CoordinatesSchema,
+  visualIntent: z.string().min(1),
+  accessNotes: z.string().min(1),
+  environmentNotes: z.string().min(1),
+  logisticsNotes: z.string().min(1),
 });
 
 const ActivityConstraintSchema = z.enum([
@@ -33,28 +66,43 @@ const ActivityConstraintSchema = z.enum([
   'DEPENDENT',
 ]);
 
-const ActivitySchema = z.strictObject({
-  id: PackEntityIdSchema,
-  startLocal: ProductionTimeSchema,
-  endLocal: ProductionTimeSchema,
-  locationId: PackEntityIdSchema,
-  assignedPersonIds: z.array(PackEntityIdSchema).min(1),
-  dependsOn: z.array(PackEntityIdSchema),
-  constraint: ActivityConstraintSchema,
-  equipmentIds: z.array(PackEntityIdSchema),
-  documentIds: z.array(PackEntityIdSchema),
-});
+const ActivitySchema = z
+  .strictObject({
+    id: PackEntityIdSchema,
+    startLocal: ProductionTimeSchema,
+    endLocal: ProductionTimeSchema,
+    locationId: PackEntityIdSchema,
+    assignedPersonIds: z.array(PackEntityIdSchema).min(1),
+    dependsOn: z.array(PackEntityIdSchema),
+    constraint: ActivityConstraintSchema,
+    equipmentIds: z.array(PackEntityIdSchema),
+    documentIds: z.array(PackEntityIdSchema),
+  })
+  .superRefine((activity, ctx) => {
+    if (activity.constraint === 'DEPENDENT' && activity.dependsOn.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dependsOn'],
+        message: 'DEPENDENT activities require at least one dependency.',
+      });
+    }
+  });
 
 const DeliverableSchema = z.strictObject({
   id: PackEntityIdSchema,
   importance: z.enum(['CRITICAL', 'HIGH', 'MEDIUM']),
   requiredActivityIds: z.array(PackEntityIdSchema).min(1),
   requiredDocumentIds: z.array(PackEntityIdSchema),
+  requiredPersonIds: z.array(PackEntityIdSchema),
+  requiredLocationIds: z.array(PackEntityIdSchema),
+  requiredEquipmentIds: z.array(PackEntityIdSchema),
 });
 
 const EquipmentAssetSchema = z.strictObject({
   id: PackEntityIdSchema,
   name: z.string().min(1),
+  category: z.enum(['BODY', 'LENS', 'MEDIA', 'POWER', 'LIGHTING', 'TETHERING', 'MOTION', 'OTHER']),
+  operationalState: z.enum(['READY', 'DEGRADED', 'FAILED', 'UNKNOWN']),
 });
 
 const CapturePathSchema = z.strictObject({
@@ -65,24 +113,50 @@ const CapturePathSchema = z.strictObject({
 
 const RightsDocumentSchema = z.strictObject({
   id: PackEntityIdSchema,
-  coversDeliverableIds: z.array(PackEntityIdSchema),
+  name: z.string().min(1),
+  kind: z.enum([
+    'MODEL_RELEASE',
+    'LOCATION_RELEASE',
+    'LOCATION_ACCESS',
+    'PERMIT',
+    'STUDIO_BOOKING',
+    'USAGE_RIGHTS',
+  ]),
+  validFromDate: NullableProductionDateSchema,
+  validThroughDate: NullableProductionDateSchema,
+  personIds: z.array(PackEntityIdSchema),
   locationIds: z.array(PackEntityIdSchema),
+  coversDeliverableIds: z.array(PackEntityIdSchema),
+  usageScopes: z.array(z.string().min(1)),
 });
+
+const PriorityObjectiveSchema = z.enum([
+  'EXTERIOR_CREATIVE_INTENT',
+  'DAYLIGHT',
+  'STUDIO_COMPLETION',
+  'DELAY_MINIMIZATION',
+  'CREW_CONVENIENCE',
+  'COST',
+]);
 
 const PriorityProfileSchema = z.strictObject({
   profile: z.literal('CREATIVE_FIRST'),
   rankedObjectives: z
-    .array(
-      z.enum([
-        'PRESERVE_EXTERIOR_INTENT',
-        'PRESERVE_STUDIO',
-        'MINIMIZE_DELAY',
-        'CREW_CONVENIENCE',
-        'MINIMIZE_COST',
-      ]),
-    )
-    .min(1),
+    .array(PriorityObjectiveSchema)
+    .length(6)
+    .refine(
+      (objectives) => new Set(objectives).size === objectives.length,
+      'Priority objectives must each appear exactly once.',
+    ),
 });
+
+export const HARD_GATE_SUBJECT_TYPES = {
+  LOCATION_ACCESS: 'LOCATION',
+  CRITICAL_TALENT: 'PERSON',
+  RIGHTS: 'DOCUMENT',
+  CRITICAL_CAPTURE_KIT: 'EQUIPMENT_PATH',
+  STUDIO_AVAILABILITY: 'LOCATION',
+} as const;
 
 const HardGateIdSchema = z.enum([
   'LOCATION_ACCESS',
@@ -92,14 +166,49 @@ const HardGateIdSchema = z.enum([
   'STUDIO_AVAILABILITY',
 ]);
 
-const HardGateSchema = z.strictObject({
-  id: HardGateIdSchema,
-  evidenceIds: z.array(PackEntityIdSchema),
-});
+const HardGateSubjectTypeSchema = z.enum(['LOCATION', 'PERSON', 'DOCUMENT', 'EQUIPMENT_PATH']);
+
+const HardGateSchema = z
+  .strictObject({
+    id: HardGateIdSchema,
+    subjectType: HardGateSubjectTypeSchema,
+    subjectIds: z.array(PackEntityIdSchema).min(1),
+  })
+  .superRefine((gate, ctx) => {
+    if (gate.subjectType !== HARD_GATE_SUBJECT_TYPES[gate.id]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['subjectType'],
+        message: `Hard gate '${gate.id}' requires subjectType '${HARD_GATE_SUBJECT_TYPES[gate.id]}'.`,
+      });
+    }
+  });
+
+const EvidenceKindSchema = z.enum([
+  'WEATHER',
+  'TRAVEL',
+  'SOLAR',
+  'CREW_CONFIRMATION',
+  'EQUIPMENT_VERIFICATION',
+  'DOCUMENT',
+  'LOCATION_ACCESS',
+]);
+
+const EvidenceSubjectTypeSchema = z.enum([
+  'PERSON',
+  'LOCATION',
+  'ACTIVITY',
+  'EQUIPMENT',
+  'EQUIPMENT_PATH',
+  'DOCUMENT',
+]);
 
 const EvidenceReferenceSchema = z.strictObject({
   id: PackEntityIdSchema,
-  documentIds: z.array(PackEntityIdSchema),
+  kind: EvidenceKindSchema,
+  trustState: EvidenceTrustStateSchema,
+  subjectType: EvidenceSubjectTypeSchema,
+  subjectId: PackEntityIdSchema,
 });
 
 const ProductionIdentitySchema = z.strictObject({
@@ -112,6 +221,7 @@ const ProductionIdentitySchema = z.strictObject({
 export const ProductionPackSchema = z.strictObject({
   fixtureVersion: FixtureVersionSchema,
   policyVersion: PolicyVersionSchema,
+  syntheticDataDeclaration: z.literal(true),
   production: ProductionIdentitySchema,
   crew: z.array(PersonSchema).min(1),
   locations: z.array(LocationSchema).min(1),

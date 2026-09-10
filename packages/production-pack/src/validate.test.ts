@@ -8,6 +8,7 @@ function makeMinimalValidPack(): JsonObject {
   return {
     fixtureVersion: 'BCN-DEMO-v1',
     policyVersion: 'SR-POLICY-v1',
+    syntheticDataDeclaration: true,
     production: {
       id: 'BCN-DEMO-01',
       campaignName: 'Minimal production',
@@ -19,16 +20,22 @@ function makeMinimalValidPack(): JsonObject {
         id: 'PERSON-01',
         role: 'PRODUCTION_LEAD',
         name: 'Synthetic Lead',
+        critical: true,
       },
     ],
     locations: [
       {
         id: 'LOC-01',
         name: 'Studio North — synthetic',
+        kind: 'STUDIO',
         coordinates: {
           latitude: 41.4034,
           longitude: 2.1986,
         },
+        visualIntent: 'Controlled studio look',
+        accessNotes: 'Synthetic studio access',
+        environmentNotes: 'Indoor climate-controlled',
+        logisticsNotes: 'Load-in via synthetic dock',
       },
     ],
     schedule: [
@@ -50,11 +57,24 @@ function makeMinimalValidPack(): JsonObject {
         importance: 'CRITICAL',
         requiredActivityIds: ['ACT-01'],
         requiredDocumentIds: ['DOC-01'],
+        requiredPersonIds: ['PERSON-01'],
+        requiredLocationIds: ['LOC-01'],
+        requiredEquipmentIds: ['EQ-PRIMARY-01'],
       },
     ],
     equipment: [
-      { id: 'EQ-PRIMARY-01', name: 'Primary camera' },
-      { id: 'EQ-BACKUP-01', name: 'Backup camera' },
+      {
+        id: 'EQ-PRIMARY-01',
+        name: 'Primary camera',
+        category: 'BODY',
+        operationalState: 'READY',
+      },
+      {
+        id: 'EQ-BACKUP-01',
+        name: 'Backup camera',
+        category: 'BODY',
+        operationalState: 'READY',
+      },
     ],
     capturePaths: [
       {
@@ -66,30 +86,61 @@ function makeMinimalValidPack(): JsonObject {
     rights: [
       {
         id: 'DOC-01',
-        coversDeliverableIds: ['DELIVERABLE-01'],
+        name: 'Model release',
+        kind: 'MODEL_RELEASE',
+        validFromDate: null,
+        validThroughDate: null,
+        personIds: ['PERSON-01'],
         locationIds: ['LOC-01'],
+        coversDeliverableIds: ['DELIVERABLE-01'],
+        usageScopes: ['PAID_CAMPAIGN'],
       },
     ],
     priorities: {
       profile: 'CREATIVE_FIRST',
       rankedObjectives: [
-        'PRESERVE_EXTERIOR_INTENT',
-        'PRESERVE_STUDIO',
-        'MINIMIZE_DELAY',
+        'EXTERIOR_CREATIVE_INTENT',
+        'DAYLIGHT',
+        'STUDIO_COMPLETION',
+        'DELAY_MINIMIZATION',
         'CREW_CONVENIENCE',
-        'MINIMIZE_COST',
+        'COST',
       ],
     },
     hardGates: [
       {
         id: 'LOCATION_ACCESS',
-        evidenceIds: ['EVD-01'],
+        subjectType: 'LOCATION',
+        subjectIds: ['LOC-01'],
+      },
+      {
+        id: 'CRITICAL_TALENT',
+        subjectType: 'PERSON',
+        subjectIds: ['PERSON-01'],
+      },
+      {
+        id: 'RIGHTS',
+        subjectType: 'DOCUMENT',
+        subjectIds: ['DOC-01'],
+      },
+      {
+        id: 'CRITICAL_CAPTURE_KIT',
+        subjectType: 'EQUIPMENT_PATH',
+        subjectIds: ['PATH-01'],
+      },
+      {
+        id: 'STUDIO_AVAILABILITY',
+        subjectType: 'LOCATION',
+        subjectIds: ['LOC-01'],
       },
     ],
     evidence: [
       {
         id: 'EVD-01',
-        documentIds: ['DOC-01'],
+        kind: 'DOCUMENT',
+        trustState: 'MISSING',
+        subjectType: 'DOCUMENT',
+        subjectId: 'DOC-01',
       },
     ],
   };
@@ -105,7 +156,7 @@ function issueCodes(input: unknown): readonly string[] {
 }
 
 describe('Production Pack validation', () => {
-  it('accepts a minimal valid pack', () => {
+  it('accepts a canonical-shaped Task-5-ready minimal pack', () => {
     const result = validateProductionPack(makeMinimalValidPack());
 
     expect(result.ok).toBe(true);
@@ -114,6 +165,38 @@ describe('Production Pack validation', () => {
     }
     expect(result.pack.production.id).toBe('BCN-DEMO-01');
     expect(result.pack.policyVersion).toBe('SR-POLICY-v1');
+    expect(result.pack.syntheticDataDeclaration).toBe(true);
+    expect(result.pack.crew[0]?.critical).toBe(true);
+    expect(result.pack.locations[0]?.kind).toBe('STUDIO');
+    expect(result.pack.equipment[0]?.operationalState).toBe('READY');
+    expect(result.pack.hardGates).toHaveLength(5);
+  });
+
+  it('retains syntheticDataDeclaration true on a valid pack', () => {
+    const result = validateProductionPack(makeMinimalValidPack());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.pack.syntheticDataDeclaration).toBe(true);
+  });
+
+  it('accepts a MODEL_RELEASE record with DOCUMENT evidence in MISSING trust state', () => {
+    const result = validateProductionPack(makeMinimalValidPack());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.pack.rights[0]?.kind).toBe('MODEL_RELEASE');
+    expect(result.pack.evidence[0]).toEqual({
+      id: 'EVD-01',
+      kind: 'DOCUMENT',
+      trustState: 'MISSING',
+      subjectType: 'DOCUMENT',
+      subjectId: 'DOC-01',
+    });
   });
 
   it('rejects a deliverable that references an unknown activity', () => {
@@ -152,6 +235,67 @@ describe('Production Pack validation', () => {
     expect(codes).toContain('UNKNOWN_DOCUMENT_REFERENCE');
   });
 
+  it('rejects unknown deliverable person, location, and equipment references', () => {
+    const pack = makeMinimalValidPack();
+    const deliverables = pack.deliverables as JsonObject[];
+    deliverables[0]!.requiredPersonIds = ['PERSON-UNKNOWN'];
+    deliverables[0]!.requiredLocationIds = ['LOC-UNKNOWN'];
+    deliverables[0]!.requiredEquipmentIds = ['EQ-UNKNOWN'];
+
+    const result = validateProductionPack(pack);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    const codes = result.issues.map((issue) => issue.code);
+    expect(codes).toContain('UNKNOWN_PERSON_REFERENCE');
+    expect(codes).toContain('UNKNOWN_LOCATION_REFERENCE');
+    expect(codes).toContain('UNKNOWN_EQUIPMENT_REFERENCE');
+  });
+
+  it('rejects an unknown hard-gate subject with the matching UNKNOWN_* code', () => {
+    const locationGate = makeMinimalValidPack();
+    const locationGates = locationGate.hardGates as JsonObject[];
+    locationGates[0]!.subjectIds = ['LOC-UNKNOWN'];
+    expect(issueCodes(locationGate)).toContain('UNKNOWN_LOCATION_REFERENCE');
+
+    const talentGate = makeMinimalValidPack();
+    const talentGates = talentGate.hardGates as JsonObject[];
+    talentGates[1]!.subjectIds = ['PERSON-UNKNOWN'];
+    expect(issueCodes(talentGate)).toContain('UNKNOWN_PERSON_REFERENCE');
+
+    const rightsGate = makeMinimalValidPack();
+    const rightsGates = rightsGate.hardGates as JsonObject[];
+    rightsGates[2]!.subjectIds = ['DOC-UNKNOWN'];
+    expect(issueCodes(rightsGate)).toContain('UNKNOWN_DOCUMENT_REFERENCE');
+
+    const captureGate = makeMinimalValidPack();
+    const captureGates = captureGate.hardGates as JsonObject[];
+    captureGates[3]!.subjectIds = ['PATH-UNKNOWN'];
+    expect(issueCodes(captureGate)).toContain('UNKNOWN_EQUIPMENT_REFERENCE');
+  });
+
+  it('rejects an unknown evidence subject with the matching UNKNOWN_* code', () => {
+    const personEvidence = makeMinimalValidPack();
+    const personItems = personEvidence.evidence as JsonObject[];
+    personItems[0]!.subjectType = 'PERSON';
+    personItems[0]!.subjectId = 'PERSON-UNKNOWN';
+    expect(issueCodes(personEvidence)).toContain('UNKNOWN_PERSON_REFERENCE');
+
+    const pathEvidence = makeMinimalValidPack();
+    const pathItems = pathEvidence.evidence as JsonObject[];
+    pathItems[0]!.subjectType = 'EQUIPMENT_PATH';
+    pathItems[0]!.subjectId = 'PATH-UNKNOWN';
+    expect(issueCodes(pathEvidence)).toContain('UNKNOWN_EQUIPMENT_REFERENCE');
+
+    const activityEvidence = makeMinimalValidPack();
+    const activityItems = activityEvidence.evidence as JsonObject[];
+    activityItems[0]!.subjectType = 'ACTIVITY';
+    activityItems[0]!.subjectId = 'ACT-UNKNOWN';
+    expect(issueCodes(activityEvidence)).toContain('UNKNOWN_ACTIVITY_REFERENCE');
+  });
+
   it('rejects duplicate entity ids', () => {
     const pack = makeMinimalValidPack();
     const crew = pack.crew as JsonObject[];
@@ -159,9 +303,34 @@ describe('Production Pack validation', () => {
       id: 'PERSON-01',
       role: 'PHOTOGRAPHER',
       name: 'Synthetic Photographer',
+      critical: false,
     });
 
     expect(issueCodes(pack)).toContain('DUPLICATE_ID');
+  });
+
+  it('rejects a duplicate priority objective', () => {
+    const pack = makeMinimalValidPack();
+    const priorities = pack.priorities as JsonObject;
+    priorities.rankedObjectives = [
+      'EXTERIOR_CREATIVE_INTENT',
+      'DAYLIGHT',
+      'STUDIO_COMPLETION',
+      'DELAY_MINIMIZATION',
+      'CREW_CONVENIENCE',
+      'EXTERIOR_CREATIVE_INTENT',
+    ];
+
+    expect(issueCodes(pack)).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('rejects a DEPENDENT activity with no dependency', () => {
+    const pack = makeMinimalValidPack();
+    const schedule = pack.schedule as JsonObject[];
+    schedule[0]!.constraint = 'DEPENDENT';
+    schedule[0]!.dependsOn = [];
+
+    expect(issueCodes(pack)).toEqual(['SCHEMA_INVALID']);
   });
 
   it('types SR-POLICY-v2 as unsupported rather than schema-invalid', () => {
@@ -192,6 +361,20 @@ describe('Production Pack validation', () => {
       return;
     }
     expect(result.issues.some((issue) => issue.code === 'TEMPORAL_AMBIGUITY')).toBe(true);
+  });
+
+  it('rejects a calendar-invalid date as schema-invalid rather than temporal ambiguity', () => {
+    const pack = makeMinimalValidPack();
+    (pack.production as JsonObject).date = '2026-02-30';
+
+    const result = validateProductionPack(pack);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.issues.map((issue) => issue.code)).toEqual(['SCHEMA_INVALID']);
+    expect(result.issues.some((issue) => issue.code === 'TEMPORAL_AMBIGUITY')).toBe(false);
   });
 
   it('rejects a schedule that is not chronological by resolved instant', () => {
@@ -303,6 +486,7 @@ describe('Production Pack validation', () => {
       id: 'PERSON-01',
       role: 'PHOTOGRAPHER',
       name: 'Synthetic Photographer',
+      critical: false,
     });
     const deliverables = pack.deliverables as JsonObject[];
     deliverables[0]!.requiredActivityIds = ['ACT-UNKNOWN'];
@@ -331,6 +515,7 @@ describe('Production Pack validation', () => {
       id: 'PERSON-01',
       role: 'PHOTOGRAPHER',
       name: 'Synthetic Photographer',
+      critical: false,
     });
     const deliverables = pack.deliverables as JsonObject[];
     deliverables[0]!.requiredActivityIds = ['ACT-UNKNOWN'];
