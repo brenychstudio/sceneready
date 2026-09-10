@@ -73,10 +73,31 @@ describe('pack:validate CLI', () => {
       throw new Error('CLI output is not an object');
     }
     const record = parsed as Record<string, unknown>;
-    expect(record.packFingerprint).toMatch(/^[a-f0-9]{64}$/);
-    expect(typeof record.activatedAt).toBe('string');
-    expect(String(record.activatedAt).length).toBeGreaterThan(0);
+    expect(record.packFingerprint).toBe(
+      'a47651ad316ebbd759ae2f05aabf20fc882cfe6ff7e7c31681fd6ddaf2b13bbf',
+    );
+    expect(record.activatedAt).toBe('2026-09-17T03:45:00Z');
     expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns byte-equivalent JSON across two validation runs', async () => {
+    const first = await runCli(['--fixture', fixtureDir]);
+    const second = await runCli(['--fixture', fixtureDir]);
+
+    expect(first.code).toBe(0);
+    expect(second.code).toBe(0);
+    expect(first.stdout).toBe(second.stdout);
+    expect(first.stdout).toBe(
+      `${JSON.stringify({
+        status: 'VALID',
+        productionId: 'BCN-DEMO-01',
+        fixtureVersion: 'BCN-DEMO-v1',
+        policyVersion: 'SR-POLICY-v1',
+        graphSchemaVersion: 'SR-GRAPH-v1',
+        packFingerprint: 'a47651ad316ebbd759ae2f05aabf20fc882cfe6ff7e7c31681fd6ddaf2b13bbf',
+        activatedAt: '2026-09-17T03:45:00Z',
+      })}\n`,
+    );
   });
 
   it('exits 2 for invalid fixture input without a stack trace', async () => {
@@ -101,6 +122,9 @@ describe('pack:validate CLI', () => {
     expect(source).not.toContain('compileProductionGraph');
     expect(source).not.toContain('@sceneready/production-graph');
     expect(source).not.toContain('production-graph');
+    expect(source).not.toContain('packOwnedActivationInstant');
+    expect(source).toContain('function deriveValidationActivationInstant');
+    expect(source).not.toMatch(/export\s+(?:async\s+)?function deriveValidationActivationInstant/);
 
     const result = await runCli(['--fixture', fixtureDir]);
     const parsed: unknown = JSON.parse(result.stdout.trim());

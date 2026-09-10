@@ -2,12 +2,13 @@ import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveZonedProductionTime } from '@sceneready/domain';
 import {
   GRAPH_SCHEMA_VERSION,
   activateProductionPack,
   fingerprintProductionPack,
-  packOwnedActivationInstant,
   validateProductionPack,
+  type ProductionPack,
 } from '@sceneready/production-pack';
 
 export interface ValidatePackWriter {
@@ -91,6 +92,22 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'invalid pack input';
 }
 
+// Deterministic certification/replay provenance for static fixture validation.
+// First scheduled activity instant is a VALIDATION ANCHOR, not live wall-clock
+// activation. Future live runtime must pass authoritative activatedAt to
+// activateProductionPack() explicitly.
+function deriveValidationActivationInstant(pack: ProductionPack): string {
+  const firstActivity = pack.schedule[0];
+  if (firstActivity === undefined) {
+    throw new Error('production pack schedule is empty');
+  }
+  return resolveZonedProductionTime({
+    date: pack.production.date,
+    time: firstActivity.startLocal,
+    timeZone: pack.production.timeZone,
+  }).instant;
+}
+
 export async function runValidatePack(
   args: readonly string[],
   io: ValidatePackIo,
@@ -125,7 +142,7 @@ export async function runValidatePack(
       return 2;
     }
 
-    const activatedAt = packOwnedActivationInstant(validated.pack);
+    const activatedAt = deriveValidationActivationInstant(validated.pack);
     const manifest = activateProductionPack(validated.pack, activatedAt);
     printJson(io, {
       status: 'VALID',

@@ -1,7 +1,6 @@
 export {
   GRAPH_SCHEMA_VERSION,
   activateProductionPack,
-  packOwnedActivationInstant,
   type ProductionActivationManifest,
 } from './activate.js';
 export { CanonicalizationError } from './canonicalize.js';

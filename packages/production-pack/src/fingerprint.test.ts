@@ -244,4 +244,34 @@ describe('Production Pack activation', () => {
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
     expect(first).toEqual(second);
   });
+
+  it('preserves an explicitly supplied activatedAt and does not derive schedule time', async () => {
+    const input = await loadCanonicalBarcelonaPack();
+    const validated = validateProductionPack(input);
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) {
+      return;
+    }
+
+    const callerSupplied = '1999-12-31T23:59:59Z';
+    const nowSpy = vi.spyOn(Date, 'now');
+    const manifest = activateProductionPack(validated.pack, callerSupplied);
+
+    expect(manifest.activatedAt).toBe(callerSupplied);
+    expect(manifest.activatedAt).not.toBe('2026-09-17T03:45:00Z');
+    expect(nowSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not export packOwnedActivationInstant or derive activatedAt', async () => {
+    const api = await import('./index.js');
+    expect('packOwnedActivationInstant' in api).toBe(false);
+
+    const source = await readFile(new URL('./activate.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('packOwnedActivationInstant');
+    expect(source).not.toContain('resolveZonedProductionTime');
+    expect(source).not.toContain('schedule[0]');
+    expect(source).toContain('export function activateProductionPack');
+    expect(source).toContain('GRAPH_SCHEMA_VERSION');
+    expect(source).toContain('ProductionActivationManifest');
+  });
 });

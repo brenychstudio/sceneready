@@ -18,6 +18,7 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@sceneready/domain": "0.0.0",
     "@sceneready/production-pack": "0.0.0"
   }
 }
