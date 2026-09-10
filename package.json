@@ -24,6 +24,7 @@
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run test && npm run lint && npm run format:check && npm run build",
     "audit:public-boundary": "tsx tools/repository-audit/src/public-boundary.ts",
+    "pack:validate": "tsx tools/validate-pack/src/index.ts",
     "audit:claims": "tsx tools/evidence-report/src/claim-audit.ts",
     "eval:all": "tsx packages/evals/src/run-all.ts",
     "replay:certify": "tsx tools/replay-cli/src/certify.ts",
