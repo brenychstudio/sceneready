@@ -1,0 +1,107 @@
+[
+  {
+    "id": "DELIVERABLE-D1",
+    "name": "Hero Exterior Stills - Gothic Looks 01-02",
+    "importance": "CRITICAL",
+    "requiredActivityIds": ["ACT-GOTHIC-LOOK-01", "ACT-GOTHIC-LOOK-02"],
+    "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"],
+    "requiredPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "requiredLocationIds": ["LOC-GOTHIC"],
+    "requiredEquipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY"
+    ]
+  },
+  {
+    "id": "DELIVERABLE-D2",
+    "name": "Gothic Motion Cut - Look 03",
+    "importance": "HIGH",
+    "requiredActivityIds": ["ACT-GOTHIC-LOOK-03"],
+    "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"],
+    "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL", "PERSON-MOTION-OPERATOR"],
+    "requiredLocationIds": ["LOC-GOTHIC"],
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"]
+  },
+  {
+    "id": "DELIVERABLE-D3",
+    "name": "Eixample Editorial Stills - Looks 04-05",
+    "importance": "HIGH",
+    "requiredActivityIds": ["ACT-EIXAMPLE-LOOK-04", "ACT-EIXAMPLE-LOOK-05"],
+    "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"],
+    "requiredPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "requiredLocationIds": ["LOC-EIXAMPLE"],
+    "requiredEquipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY"
+    ]
+  },
+  {
+    "id": "DELIVERABLE-D4",
+    "name": "Eixample Motion Inserts - Look 05",
+    "importance": "MEDIUM",
+    "requiredActivityIds": ["ACT-EIXAMPLE-LOOK-05"],
+    "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"],
+    "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL", "PERSON-MOTION-OPERATOR"],
+    "requiredLocationIds": ["LOC-EIXAMPLE"],
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"]
+  },
+  {
+    "id": "DELIVERABLE-D5",
+    "name": "Studio Campaign Stills - Looks 06-08",
+    "importance": "CRITICAL",
+    "requiredActivityIds": ["ACT-STUDIO-SESSION"],
+    "requiredDocumentIds": ["DOCUMENT-STUDIO-BOOKING"],
+    "requiredPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-DIGITAL-TECH"
+    ],
+    "requiredLocationIds": ["LOC-STUDIO-NORTH"],
+    "requiredEquipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-TETHER",
+      "EQ-LIGHT-KEY"
+    ]
+  },
+  {
+    "id": "DELIVERABLE-D6",
+    "name": "Studio Motion Master",
+    "importance": "HIGH",
+    "requiredActivityIds": ["ACT-STUDIO-SESSION"],
+    "requiredDocumentIds": ["DOCUMENT-STUDIO-BOOKING"],
+    "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL", "PERSON-MOTION-OPERATOR"],
+    "requiredLocationIds": ["LOC-STUDIO-NORTH"],
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY", "EQ-TETHER"]
+  },
+  {
+    "id": "DELIVERABLE-D7",
+    "name": "Commercial Usage Package",
+    "importance": "CRITICAL",
+    "requiredActivityIds": ["ACT-GOTHIC-LOOK-01", "ACT-EIXAMPLE-LOOK-04", "ACT-STUDIO-SESSION"],
+    "requiredDocumentIds": ["DOCUMENT-MODEL-RELEASE"],
+    "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL"],
+    "requiredLocationIds": ["LOC-GOTHIC", "LOC-EIXAMPLE", "LOC-STUDIO-NORTH"],
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MEDIA-PRIMARY"]
+  }
+]

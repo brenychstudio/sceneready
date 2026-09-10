@@ -1,0 +1,41 @@
+[
+  {
+    "id": "LOC-GOTHIC",
+    "name": "Gothic Quarter",
+    "kind": "EXTERIOR",
+    "coordinates": {
+      "latitude": 41.38337,
+      "longitude": 2.17555
+    },
+    "visualIntent": "Early sidelight on stone streets and tight historic facades.",
+    "accessNotes": "Synthetic pedestrian-access window for the Gothic exterior block.",
+    "environmentNotes": "Narrow streets, reflected warm stone, limited vehicle access.",
+    "logisticsNotes": "Hand-carry from nearby drop-off; keep kit compact for alley setups."
+  },
+  {
+    "id": "LOC-EIXAMPLE",
+    "name": "Eixample",
+    "kind": "EXTERIOR",
+    "coordinates": {
+      "latitude": 41.39529,
+      "longitude": 2.16189
+    },
+    "visualIntent": "Open-grid modernist facades with broader daylight and clean sidewalk lines.",
+    "accessNotes": "Synthetic sidewalk working window for the Eixample exterior block.",
+    "environmentNotes": "Wide avenues, pale stone, higher ambient traffic and daylight.",
+    "logisticsNotes": "Curb-side unload; keep a clear pedestrian lane during setups."
+  },
+  {
+    "id": "LOC-STUDIO-NORTH",
+    "name": "Studio North — synthetic",
+    "kind": "STUDIO",
+    "coordinates": {
+      "latitude": 41.4034,
+      "longitude": 2.1986
+    },
+    "visualIntent": "Controlled continuous lighting for campaign stills and motion masters.",
+    "accessNotes": "Synthetic studio booking covering load-in through the 16:30 session boundary.",
+    "environmentNotes": "Indoor climate-controlled stage with a dedicated digital station.",
+    "logisticsNotes": "Dock load-in, tethered capture, and a reserved motion lane."
+  }
+]

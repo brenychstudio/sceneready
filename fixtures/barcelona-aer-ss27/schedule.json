@@ -1,0 +1,340 @@
+[
+  {
+    "id": "ACT-LEAD-PREFLIGHT",
+    "startLocal": "05:45",
+    "endLocal": "06:00",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": ["PERSON-PRODUCTION-LEAD"],
+    "dependsOn": [],
+    "constraint": "FIXED",
+    "equipmentIds": [],
+    "documentIds": []
+  },
+  {
+    "id": "ACT-CREW-CALL",
+    "startLocal": "06:00",
+    "endLocal": "06:20",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-STYLIST",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-LEAD-PREFLIGHT"],
+    "constraint": "TARGET",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-BODY-BACKUP",
+      "EQ-LENS-PRIMARY",
+      "EQ-LENS-BACKUP",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-MEDIA-BACKUP",
+      "EQ-POWER-PRIMARY",
+      "EQ-POWER-BACKUP"
+    ],
+    "documentIds": ["DOCUMENT-STUDIO-BOOKING"]
+  },
+  {
+    "id": "ACT-MODEL-HMU-PREP",
+    "startLocal": "06:20",
+    "endLocal": "06:40",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": ["PERSON-MODEL", "PERSON-HMU", "PERSON-STYLIST", "PERSON-PRODUCTION-LEAD"],
+    "dependsOn": ["ACT-CREW-CALL"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": [],
+    "documentIds": []
+  },
+  {
+    "id": "ACT-DEPART-GOTHIC",
+    "startLocal": "06:40",
+    "endLocal": "07:10",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-MODEL-HMU-PREP"],
+    "constraint": "FIXED",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-BODY-BACKUP", "EQ-POWER-PRIMARY"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-GOTHIC-SETUP",
+    "startLocal": "07:10",
+    "endLocal": "07:20",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-DEPART-GOTHIC"],
+    "constraint": "FIXED",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-LIGHT-KEY"
+    ],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-GOTHIC-LOOK-01",
+    "startLocal": "07:20",
+    "endLocal": "07:45",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-GOTHIC-SETUP"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-LENS-PRIMARY", "EQ-MEDIA-PRIMARY", "EQ-POWER-PRIMARY"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-GOTHIC-LOOK-02",
+    "startLocal": "07:45",
+    "endLocal": "08:10",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-GOTHIC-LOOK-01"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-LENS-PRIMARY", "EQ-MEDIA-PRIMARY", "EQ-POWER-PRIMARY"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-GOTHIC-LOOK-03",
+    "startLocal": "08:10",
+    "endLocal": "08:25",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-GOTHIC-LOOK-02"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-MOTION-GIMBAL"
+    ],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-GOTHIC-WRAP",
+    "startLocal": "08:25",
+    "endLocal": "08:35",
+    "locationId": "LOC-GOTHIC",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-GOTHIC-LOOK-03"],
+    "constraint": "TARGET",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-BODY-BACKUP", "EQ-POWER-PRIMARY"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"]
+  },
+  {
+    "id": "ACT-TRANSFER-EIXAMPLE",
+    "startLocal": "08:35",
+    "endLocal": "08:55",
+    "locationId": "LOC-EIXAMPLE",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-GOTHIC-WRAP"],
+    "constraint": "DEPENDENT",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-BODY-BACKUP"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"]
+  },
+  {
+    "id": "ACT-EIXAMPLE-SETUP",
+    "startLocal": "08:55",
+    "endLocal": "09:05",
+    "locationId": "LOC-EIXAMPLE",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-TRANSFER-EIXAMPLE"],
+    "constraint": "FIXED",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-LIGHT-FILL"
+    ],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"]
+  },
+  {
+    "id": "ACT-EIXAMPLE-LOOK-04",
+    "startLocal": "09:05",
+    "endLocal": "09:30",
+    "locationId": "LOC-EIXAMPLE",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-EIXAMPLE-SETUP"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-LENS-PRIMARY", "EQ-MEDIA-PRIMARY", "EQ-POWER-PRIMARY"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"]
+  },
+  {
+    "id": "ACT-EIXAMPLE-LOOK-05",
+    "startLocal": "09:30",
+    "endLocal": "09:50",
+    "locationId": "LOC-EIXAMPLE",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PHOTO-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-EIXAMPLE-LOOK-04"],
+    "constraint": "CRITICAL_WINDOW",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-MOTION-GIMBAL"
+    ],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"]
+  },
+  {
+    "id": "ACT-EIXAMPLE-WRAP",
+    "startLocal": "09:50",
+    "endLocal": "10:00",
+    "locationId": "LOC-EIXAMPLE",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-EIXAMPLE-LOOK-05"],
+    "constraint": "FLEXIBLE",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-BODY-BACKUP"],
+    "documentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"]
+  },
+  {
+    "id": "ACT-TRANSFER-STUDIO",
+    "startLocal": "10:00",
+    "endLocal": "10:25",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-MOTION-OPERATOR",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-EIXAMPLE-WRAP"],
+    "constraint": "DEPENDENT",
+    "equipmentIds": ["EQ-BODY-PRIMARY", "EQ-BODY-BACKUP", "EQ-TETHER"],
+    "documentIds": ["DOCUMENT-STUDIO-BOOKING"]
+  },
+  {
+    "id": "ACT-STUDIO-LOAD-IN",
+    "startLocal": "10:25",
+    "endLocal": "10:45",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-PRODUCTION-ASSISTANT"
+    ],
+    "dependsOn": ["ACT-TRANSFER-STUDIO"],
+    "constraint": "FIXED",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-LENS-PRIMARY",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-POWER-PRIMARY",
+      "EQ-TETHER",
+      "EQ-LIGHT-KEY",
+      "EQ-LIGHT-FILL"
+    ],
+    "documentIds": ["DOCUMENT-STUDIO-BOOKING"]
+  },
+  {
+    "id": "ACT-STUDIO-SESSION",
+    "startLocal": "10:45",
+    "endLocal": "16:30",
+    "locationId": "LOC-STUDIO-NORTH",
+    "assignedPersonIds": [
+      "PERSON-PRODUCTION-LEAD",
+      "PERSON-MODEL",
+      "PERSON-STYLIST",
+      "PERSON-HMU",
+      "PERSON-PHOTO-ASSISTANT",
+      "PERSON-DIGITAL-TECH",
+      "PERSON-MOTION-OPERATOR"
+    ],
+    "dependsOn": ["ACT-STUDIO-LOAD-IN"],
+    "constraint": "TARGET",
+    "equipmentIds": [
+      "EQ-BODY-PRIMARY",
+      "EQ-BODY-BACKUP",
+      "EQ-LENS-PRIMARY",
+      "EQ-LENS-BACKUP",
+      "EQ-MEDIA-PRIMARY",
+      "EQ-MEDIA-BACKUP",
+      "EQ-POWER-PRIMARY",
+      "EQ-POWER-BACKUP",
+      "EQ-LIGHT-KEY",
+      "EQ-LIGHT-FILL",
+      "EQ-TETHER",
+      "EQ-MOTION-GIMBAL"
+    ],
+    "documentIds": ["DOCUMENT-STUDIO-BOOKING"]
+  }
+]

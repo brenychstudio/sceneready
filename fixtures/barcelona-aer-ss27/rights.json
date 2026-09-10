@@ -1,0 +1,119 @@
+{
+  "documents": [
+    {
+      "id": "DOCUMENT-MODEL-RELEASE",
+      "name": "Synthetic model release",
+      "kind": "MODEL_RELEASE",
+      "validFromDate": null,
+      "validThroughDate": null,
+      "personIds": ["PERSON-MODEL"],
+      "locationIds": [],
+      "coversDeliverableIds": ["DELIVERABLE-D7"],
+      "usageScopes": ["PAID_CAMPAIGN"]
+    },
+    {
+      "id": "DOCUMENT-LOCATION-ACCESS-GOTHIC",
+      "name": "Synthetic Gothic location access",
+      "kind": "LOCATION_ACCESS",
+      "validFromDate": "2026-09-17",
+      "validThroughDate": "2026-09-17",
+      "personIds": ["PERSON-PRODUCTION-LEAD"],
+      "locationIds": ["LOC-GOTHIC"],
+      "coversDeliverableIds": ["DELIVERABLE-D1", "DELIVERABLE-D2"],
+      "usageScopes": ["EDITORIAL"]
+    },
+    {
+      "id": "DOCUMENT-LOCATION-ACCESS-EIXAMPLE",
+      "name": "Synthetic Eixample location access",
+      "kind": "LOCATION_ACCESS",
+      "validFromDate": "2026-09-17",
+      "validThroughDate": "2026-09-17",
+      "personIds": ["PERSON-PRODUCTION-LEAD"],
+      "locationIds": ["LOC-EIXAMPLE"],
+      "coversDeliverableIds": ["DELIVERABLE-D3", "DELIVERABLE-D4"],
+      "usageScopes": ["EDITORIAL"]
+    },
+    {
+      "id": "DOCUMENT-STUDIO-BOOKING",
+      "name": "Synthetic Studio North booking",
+      "kind": "STUDIO_BOOKING",
+      "validFromDate": "2026-09-17",
+      "validThroughDate": "2026-09-17",
+      "personIds": ["PERSON-PRODUCTION-LEAD"],
+      "locationIds": ["LOC-STUDIO-NORTH"],
+      "coversDeliverableIds": ["DELIVERABLE-D5", "DELIVERABLE-D6"],
+      "usageScopes": ["STUDIO_SESSION"]
+    }
+  ],
+  "hardGates": [
+    {
+      "id": "LOCATION_ACCESS",
+      "subjectType": "LOCATION",
+      "subjectIds": ["LOC-GOTHIC", "LOC-EIXAMPLE"]
+    },
+    {
+      "id": "CRITICAL_TALENT",
+      "subjectType": "PERSON",
+      "subjectIds": ["PERSON-MODEL"]
+    },
+    {
+      "id": "RIGHTS",
+      "subjectType": "DOCUMENT",
+      "subjectIds": ["DOCUMENT-MODEL-RELEASE"]
+    },
+    {
+      "id": "CRITICAL_CAPTURE_KIT",
+      "subjectType": "EQUIPMENT_PATH",
+      "subjectIds": ["PATH-CAPTURE-PRIMARY"]
+    },
+    {
+      "id": "STUDIO_AVAILABILITY",
+      "subjectType": "LOCATION",
+      "subjectIds": ["LOC-STUDIO-NORTH"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVD-MODEL-RELEASE",
+      "kind": "DOCUMENT",
+      "trustState": "MISSING",
+      "subjectType": "DOCUMENT",
+      "subjectId": "DOCUMENT-MODEL-RELEASE"
+    },
+    {
+      "id": "EVD-LOCATION-ACCESS-GOTHIC",
+      "kind": "LOCATION_ACCESS",
+      "trustState": "CONFIRMED",
+      "subjectType": "LOCATION",
+      "subjectId": "LOC-GOTHIC"
+    },
+    {
+      "id": "EVD-LOCATION-ACCESS-EIXAMPLE",
+      "kind": "LOCATION_ACCESS",
+      "trustState": "CONFIRMED",
+      "subjectType": "LOCATION",
+      "subjectId": "LOC-EIXAMPLE"
+    },
+    {
+      "id": "EVD-STUDIO-BOOKING",
+      "kind": "DOCUMENT",
+      "trustState": "CONFIRMED",
+      "subjectType": "DOCUMENT",
+      "subjectId": "DOCUMENT-STUDIO-BOOKING"
+    },
+    {
+      "id": "EVD-TALENT-MODEL",
+      "kind": "CREW_CONFIRMATION",
+      "trustState": "CONFIRMED",
+      "subjectType": "PERSON",
+      "subjectId": "PERSON-MODEL"
+    },
+    {
+      "id": "EVD-CAPTURE-PATH",
+      "kind": "EQUIPMENT_VERIFICATION",
+      "trustState": "CONFIRMED",
+      "subjectType": "EQUIPMENT_PATH",
+      "subjectId": "PATH-CAPTURE-PRIMARY"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "PERSON-PRODUCTION-LEAD",
+    "role": "Production Lead / Photographer",
+    "name": "Synthetic Production Lead",
+    "critical": false
+  },
+  {
+    "id": "PERSON-MODEL",
+    "role": "Model",
+    "name": "Synthetic Model",
+    "critical": true
+  },
+  {
+    "id": "PERSON-STYLIST",
+    "role": "Stylist",
+    "name": "Synthetic Stylist",
+    "critical": false
+  },
+  {
+    "id": "PERSON-HMU",
+    "role": "Hair & Makeup Artist",
+    "name": "Synthetic Hair and Makeup Artist",
+    "critical": false
+  },
+  {
+    "id": "PERSON-PHOTO-ASSISTANT",
+    "role": "Photo Assistant",
+    "name": "Synthetic Photo Assistant",
+    "critical": false
+  },
+  {
+    "id": "PERSON-DIGITAL-TECH",
+    "role": "Digital Tech",
+    "name": "Synthetic Digital Tech",
+    "critical": false
+  },
+  {
+    "id": "PERSON-MOTION-OPERATOR",
+    "role": "Motion Operator",
+    "name": "Synthetic Motion Operator",
+    "critical": false
+  },
+  {
+    "id": "PERSON-PRODUCTION-ASSISTANT",
+    "role": "Production Assistant / Driver",
+    "name": "Synthetic Production Assistant",
+    "critical": false
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "profile": "CREATIVE_FIRST",
+  "rankedObjectives": [
+    "EXTERIOR_CREATIVE_INTENT",
+    "DAYLIGHT",
+    "STUDIO_COMPLETION",
+    "DELAY_MINIMIZATION",
+    "CREW_CONVENIENCE",
+    "COST"
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "assets": [
+    {
+      "id": "EQ-BODY-PRIMARY",
+      "name": "Primary camera body",
+      "category": "BODY",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-BODY-BACKUP",
+      "name": "Backup camera body",
+      "category": "BODY",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-LENS-PRIMARY",
+      "name": "Primary stills lens",
+      "category": "LENS",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-LENS-BACKUP",
+      "name": "Backup stills lens",
+      "category": "LENS",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-MEDIA-PRIMARY",
+      "name": "Primary media cards",
+      "category": "MEDIA",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-MEDIA-BACKUP",
+      "name": "Backup media cards",
+      "category": "MEDIA",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-POWER-PRIMARY",
+      "name": "Primary batteries and charger",
+      "category": "POWER",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-POWER-BACKUP",
+      "name": "Backup batteries",
+      "category": "POWER",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-LIGHT-KEY",
+      "name": "Key light",
+      "category": "LIGHTING",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-LIGHT-FILL",
+      "name": "Fill light",
+      "category": "LIGHTING",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-TETHER",
+      "name": "Tether station",
+      "category": "TETHERING",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-MOTION-GIMBAL",
+      "name": "Motion gimbal",
+      "category": "MOTION",
+      "operationalState": "READY"
+    },
+    {
+      "id": "EQ-MOTION-SUPPORT",
+      "name": "Motion support rig",
+      "category": "MOTION",
+      "operationalState": "READY"
+    }
+  ],
+  "capturePaths": [
+    {
+      "id": "PATH-CAPTURE-PRIMARY",
+      "primaryEquipmentIds": [
+        "EQ-BODY-PRIMARY",
+        "EQ-LENS-PRIMARY",
+        "EQ-MEDIA-PRIMARY",
+        "EQ-POWER-PRIMARY"
+      ],
+      "backupEquipmentIds": [
+        "EQ-BODY-BACKUP",
+        "EQ-LENS-BACKUP",
+        "EQ-MEDIA-BACKUP",
+        "EQ-POWER-BACKUP"
+      ]
+    },
+    {
+      "id": "PATH-MOTION",
+      "primaryEquipmentIds": ["EQ-MOTION-GIMBAL", "EQ-BODY-PRIMARY", "EQ-MEDIA-PRIMARY"],
+      "backupEquipmentIds": ["EQ-MOTION-SUPPORT", "EQ-BODY-BACKUP", "EQ-MEDIA-BACKUP"]
+    }
+  ]
+}
