@@ -573,6 +573,54 @@ describe('evidence conflict resolution', () => {
     expect(forward.conflicts[0]?.conflictId).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
     expect(reversed.conflicts[0]?.conflictId).toBe(forward.conflicts[0]?.conflictId);
   });
+
+  it('quarantines contradictory fallback facts with different values', () => {
+    const olderFallback = makeEvidence({
+      evidenceId: 'E-FB-VALID',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'FALLBACK',
+      observedAt: '2026-09-16T12:00:00Z',
+      value: 'VALID',
+    });
+    const newerFallback = makeEvidence({
+      evidenceId: 'E-FB-REVOKED',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'FALLBACK',
+      observedAt: '2026-09-17T04:00:00Z',
+      value: 'REVOKED',
+    });
+
+    const result = resolve([olderFallback, newerFallback]);
+
+    expect(result.active).toEqual([]);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]?.status).toBe('UNRESOLVED');
+    expect(result.conflicts[0]?.evidenceIds).toEqual(['E-FB-REVOKED', 'E-FB-VALID']);
+  });
+
+  it('lets newer non-fallback evidence supersede older fallback without conflict', () => {
+    const fallback = makeEvidence({
+      evidenceId: 'E-FB-OLD',
+      scope: EQUIPMENT_SCOPE,
+      authorityClass: 'FALLBACK',
+      observedAt: '2026-09-16T18:00:00Z',
+      value: 'UNKNOWN',
+    });
+    const authoritative = makeEvidence({
+      evidenceId: 'E-EQ-LIVE',
+      scope: EQUIPMENT_SCOPE,
+      authorityClass: 'EXTERNAL_AUTHORITATIVE',
+      observedAt: '2026-09-17T04:20:00Z',
+      value: 'OPERATIONAL',
+    });
+
+    const result = resolve([fallback, authoritative]);
+
+    expect(activeIds(result.active)).toEqual(['E-EQ-LIVE']);
+    expect(result.active[0]?.value).toBe('OPERATIONAL');
+    expect(supersededIds(result.superseded)).toEqual(['E-FB-OLD']);
+    expect(result.conflicts).toEqual([]);
+  });
 });
 
 describe('scoped evidence provenance', () => {

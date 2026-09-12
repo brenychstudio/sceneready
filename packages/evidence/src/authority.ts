@@ -37,7 +37,7 @@ export function canAuthoritySupersede(
   winnerClass: EvidenceAuthorityClass,
   loserClass: EvidenceAuthorityClass,
 ): boolean {
-  if (loserClass === 'FALLBACK') {
+  if (loserClass === 'FALLBACK' && winnerClass !== 'FALLBACK') {
     return true;
   }
 
