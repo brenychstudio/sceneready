@@ -14,7 +14,15 @@ export const EVIDENCE_SOURCE_TYPES = ['EXTERNAL_PROVIDER'] as const;
 
 export type EvidenceSourceType = (typeof EVIDENCE_SOURCE_TYPES)[number];
 
-export const EVIDENCE_AUTHORITY_CLASSES = ['EXTERNAL_AUTHORITATIVE'] as const;
+export const EVIDENCE_AUTHORITY_CLASSES = [
+  'SYSTEM_DERIVED',
+  'EXTERNAL_AUTHORITATIVE',
+  'DOCUMENT_AUTHORITY',
+  'SUBJECT_CONFIRMATION',
+  'PRODUCTION_LEAD_ASSERTION',
+  'RECORDED_INTERNAL',
+  'FALLBACK',
+] as const;
 
 export type EvidenceAuthorityClass = (typeof EVIDENCE_AUTHORITY_CLASSES)[number];
 

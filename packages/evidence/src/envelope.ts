@@ -103,6 +103,14 @@ export function createEvidenceEnvelope<Payload>(
     input.validFrom === undefined ? undefined : assertInstant(input.validFrom, 'validFrom');
   const validUntil =
     input.validUntil === undefined ? undefined : assertInstant(input.validUntil, 'validUntil');
+  if (
+    validFrom !== undefined &&
+    validUntil !== undefined &&
+    Temporal.Instant.compare(Temporal.Instant.from(validUntil), Temporal.Instant.from(validFrom)) <
+      0
+  ) {
+    throw new Error('canonical JSON rejected: validUntil precedes validFrom');
+  }
   const adapterVersion = optionalString(input.adapterVersion, 'adapterVersion');
   const algorithmVersion = optionalString(input.algorithmVersion, 'algorithmVersion');
   const payload = deepFreeze(cloneJsonPayload(input.payload));

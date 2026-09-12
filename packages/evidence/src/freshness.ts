@@ -29,20 +29,41 @@ export function evaluateEvidenceTrust<Payload>(
     };
   }
 
-  if (envelope.trustState !== 'LIVE') {
+  const now = instantFrom(nowInstant, 'nowInstant');
+  const observed = instantFrom(envelope.observedAt, 'observedAt');
+
+  if (Temporal.Instant.compare(now, observed) < 0) {
     return {
       envelope,
-      effectiveTrustState: envelope.trustState,
+      effectiveTrustState: 'STALE',
     };
   }
 
+  if (envelope.validFrom !== undefined) {
+    const validFrom = instantFrom(envelope.validFrom, 'validFrom');
+    if (Temporal.Instant.compare(now, validFrom) < 0) {
+      return {
+        envelope,
+        effectiveTrustState: 'STALE',
+      };
+    }
+  }
+
+  if (envelope.validUntil !== undefined) {
+    const validUntil = instantFrom(envelope.validUntil, 'validUntil');
+    if (Temporal.Instant.compare(now, validUntil) > 0) {
+      return {
+        envelope,
+        effectiveTrustState: 'STALE',
+      };
+    }
+  }
+
   const windowMinutes = policy.evidenceFreshnessMinutes[envelope.kind];
-  const now = instantFrom(nowInstant, 'nowInstant');
-  const observed = instantFrom(envelope.observedAt, 'observedAt');
   const elapsedMinutes = now.since(observed).total({ unit: 'minutes' });
 
   return {
     envelope,
-    effectiveTrustState: elapsedMinutes > windowMinutes ? 'STALE' : 'LIVE',
+    effectiveTrustState: elapsedMinutes > windowMinutes ? 'STALE' : envelope.trustState,
   };
 }
