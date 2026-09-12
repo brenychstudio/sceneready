@@ -16,12 +16,14 @@ export {
   type EvidenceEnvelopeInput,
 } from './envelope.js';
 export {
+  createScopedEvidence,
   groupScopedEvidence,
   indexResolvedEvidence,
   resolveEvidenceSet,
   type EvidenceIndex,
   type ResolvedEvidenceSet,
   type ScopedEvidence,
+  type ScopedEvidenceInput,
 } from './evidence-index.js';
 export { EvidenceCanonicalizationError, fingerprintEvidenceContent } from './fingerprint.js';
 export { evaluateEvidenceTrust, type EvidenceTrustEvaluation } from './freshness.js';

@@ -8,9 +8,17 @@ import {
   type EvidenceConflict,
 } from './conflicts.js';
 import type { EvidenceEnvelope } from './envelope.js';
+import { fingerprintEvidenceContent } from './fingerprint.js';
 import { evaluateEvidenceTrust } from './freshness.js';
 
 export interface ScopedEvidence<Payload = unknown> {
+  readonly scope: string;
+  readonly value: string;
+  readonly envelope: EvidenceEnvelope<Payload>;
+  readonly scopedFingerprint: string;
+}
+
+export interface ScopedEvidenceInput<Payload = unknown> {
   readonly scope: string;
   readonly value: string;
   readonly envelope: EvidenceEnvelope<Payload>;
@@ -43,6 +51,46 @@ function compareOrdinal(left: string, right: string): number {
   return 0;
 }
 
+function scopedFingerprintSubject(item: ScopedEvidenceInput): Record<string, unknown> {
+  return {
+    contentFingerprint: item.envelope.contentFingerprint,
+    evidenceId: item.envelope.evidenceId,
+    productionId: item.envelope.productionId,
+    scope: item.scope,
+    value: item.value,
+  };
+}
+
+export function createScopedEvidence<Payload>(
+  input: ScopedEvidenceInput<Payload>,
+): ScopedEvidence<Payload> {
+  return Object.freeze({
+    envelope: input.envelope,
+    scope: input.scope,
+    value: input.value,
+    scopedFingerprint: fingerprintEvidenceContent(scopedFingerprintSubject(input)),
+  });
+}
+
+function assertScopedBinding(item: ScopedEvidence): void {
+  const expected = fingerprintEvidenceContent(scopedFingerprintSubject(item));
+  if (item.scopedFingerprint !== expected) {
+    throw new Error('canonical JSON rejected: scoped fingerprint mismatch');
+  }
+}
+
+function assertSingleProduction(evidence: readonly ScopedEvidence[]): void {
+  if (evidence.length === 0) {
+    return;
+  }
+  const productionId = evidence[0]?.envelope.productionId;
+  for (const item of evidence) {
+    if (item.envelope.productionId !== productionId) {
+      throw new Error('canonical JSON rejected: mixed productionIds');
+    }
+  }
+}
+
 function scopeGroupKey(item: ScopedEvidence): string {
   return `${item.envelope.productionId}\u0000${item.scope}`;
 }
@@ -60,6 +108,10 @@ function compareRecency(left: ScopedEvidence, right: ScopedEvidence): number {
 
 function sortEvidence(items: readonly ScopedEvidence[]): ScopedEvidence[] {
   return [...items].sort((left, right) => {
+    const productionOrder = compareOrdinal(left.envelope.productionId, right.envelope.productionId);
+    if (productionOrder !== 0) {
+      return productionOrder;
+    }
     const scopeOrder = compareOrdinal(left.scope, right.scope);
     if (scopeOrder !== 0) {
       return scopeOrder;
@@ -125,82 +177,64 @@ function resolveScope(
     }
   }
 
-  const valueWinners: ScopedEvidence[] = [];
-  const sameValueSuperseded: ScopedEvidence[] = [];
+  const currentContenders: ScopedEvidence[] = [];
+  const historicalSuperseded: ScopedEvidence[] = [];
   for (const group of byValue.values()) {
     const ranked = [...group].sort((left, right) => compareRecency(right, left));
     const winner = ranked[0];
     if (winner === undefined) {
       continue;
     }
-    valueWinners.push(winner);
-    sameValueSuperseded.push(...ranked.slice(1));
+    currentContenders.push(winner);
+    historicalSuperseded.push(...ranked.slice(1));
   }
 
-  const firstWinner = valueWinners[0];
-  if (valueWinners.length === 1 && firstWinner !== undefined) {
+  const firstContender = currentContenders[0];
+  if (currentContenders.length === 1 && firstContender !== undefined) {
     return {
-      active: [firstWinner],
-      superseded: sortEvidence(sameValueSuperseded),
+      active: [firstContender],
+      superseded: sortEvidence(historicalSuperseded),
       conflicts: [],
     };
   }
 
-  for (let i = 0; i < valueWinners.length; i += 1) {
-    const left = valueWinners[i];
-    if (left === undefined) {
-      continue;
-    }
-    for (let j = i + 1; j < valueWinners.length; j += 1) {
-      const right = valueWinners[j];
-      if (right === undefined) {
-        continue;
-      }
-      if (!dominates(left, right) && !dominates(right, left)) {
-        const productionId = left.envelope.productionId;
-        return {
-          active: [],
-          superseded: [],
-          conflicts: [
-            createEvidenceConflict({
-              productionId,
-              scope: left.scope,
-              evidenceIds: usable.map((item) => item.envelope.evidenceId),
-            }),
-          ],
-        };
-      }
-    }
-  }
-
-  const undominated = valueWinners.filter((candidate) =>
-    valueWinners.every((other) => other === candidate || dominates(candidate, other)),
+  const undominated = currentContenders.filter((candidate) =>
+    currentContenders.every((other) => other === candidate || !dominates(other, candidate)),
   );
-  const winner = undominated[0];
-  if (winner === undefined || undominated.length !== 1) {
-    const representative = valueWinners[0] ?? usable[0];
-    if (representative === undefined) {
+
+  if (undominated.length === 1) {
+    const winner = undominated[0];
+    if (winner === undefined) {
       return { active: [], superseded: [], conflicts: [] };
     }
     return {
-      active: [],
-      superseded: [],
-      conflicts: [
-        createEvidenceConflict({
-          productionId: representative.envelope.productionId,
-          scope: representative.scope,
-          evidenceIds: usable.map((item) => item.envelope.evidenceId),
-        }),
-      ],
+      active: [winner],
+      superseded: sortEvidence(usable.filter((item) => item !== winner)),
+      conflicts: [],
     };
   }
 
+  const unresolved = undominated.length > 0 ? undominated : currentContenders;
+  const unresolvedSet = new Set(unresolved);
+  const dominatedCurrent = currentContenders.filter((item) => !unresolvedSet.has(item));
+  const representative = unresolved[0];
+  if (representative === undefined) {
+    return { active: [], superseded: [], conflicts: [] };
+  }
+
   return {
-    active: [winner],
-    superseded: sortEvidence(
-      usable.filter((item) => item.envelope.evidenceId !== winner.envelope.evidenceId),
-    ),
-    conflicts: [],
+    active: [],
+    superseded: sortEvidence([...historicalSuperseded, ...dominatedCurrent]),
+    conflicts: [
+      createEvidenceConflict({
+        productionId: representative.envelope.productionId,
+        scope: representative.scope,
+        contenders: unresolved.map((item) => ({
+          evidenceId: item.envelope.evidenceId,
+          contentFingerprint: item.envelope.contentFingerprint,
+        })),
+      }),
+    ],
   };
 }
 
@@ -209,6 +243,10 @@ export function resolveEvidenceSet(
   nowInstant: string,
   policy: DecisionPolicy,
 ): ResolvedEvidenceSet {
+  for (const item of evidence) {
+    assertScopedBinding(item);
+  }
+  assertSingleProduction(evidence);
   const grouped = groupScopedEvidence(evidence);
   const resolved: ScopeResolution[] = [];
   for (const group of grouped.values()) {

@@ -5,6 +5,7 @@ import { SCENEREADY_POLICY_V1 } from '@sceneready/readiness-engine';
 
 import {
   createEvidenceEnvelope,
+  createScopedEvidence,
   resolveEvidenceSet,
   type EvidenceAuthorityClass,
   type EvidenceKind,
@@ -31,6 +32,8 @@ interface MakeEvidenceInput {
   readonly receivedAt?: string;
   readonly trustState?: EvidenceTrustState;
   readonly kind?: EvidenceKind;
+  readonly productionId?: string;
+  readonly payloadExtra?: string;
 }
 
 function kindForScope(scope: string): EvidenceKind {
@@ -51,22 +54,26 @@ function kindForScope(scope: string): EvidenceKind {
 
 function makeEvidence(input: MakeEvidenceInput): ScopedEvidence {
   const observedAt = input.observedAt ?? '2026-09-17T04:00:00Z';
+  const payload: Record<string, string> =
+    input.payloadExtra === undefined
+      ? { value: input.value }
+      : { extra: input.payloadExtra, value: input.value };
   const envelope = createEvidenceEnvelope({
     evidenceId: input.evidenceId,
-    productionId: PRODUCTION_ID,
+    productionId: input.productionId ?? PRODUCTION_ID,
     kind: input.kind ?? kindForScope(input.scope),
     sourceType: 'EXTERNAL_PROVIDER',
     authorityClass: input.authorityClass,
     trustState: input.trustState ?? 'LIVE',
     observedAt,
     receivedAt: input.receivedAt ?? '2026-09-17T04:01:00Z',
-    payload: { value: input.value },
+    payload,
   });
-  return {
+  return createScopedEvidence({
+    envelope,
     scope: input.scope,
     value: input.value,
-    envelope,
-  };
+  });
 }
 
 function resolve(evidence: readonly ScopedEvidence[]) {
@@ -304,10 +311,7 @@ describe('evidence conflict resolution', () => {
     const second = resolve([lead, permit]);
 
     expect(first.conflicts[0]?.conflictId).toEqual(second.conflicts[0]?.conflictId);
-    expect(first.conflicts[0]?.conflictId).toMatch(/BCN-DEMO-01/);
-    expect(first.conflicts[0]?.conflictId).toContain(LOCATION_SCOPE);
-    expect(first.conflicts[0]?.conflictId).toContain('E-LEAD');
-    expect(first.conflicts[0]?.conflictId).toContain('E-PERMIT');
+    expect(first.conflicts[0]?.conflictId).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
     expect(first.conflicts[0]?.conflictId).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
   });
 
@@ -383,6 +387,193 @@ describe('evidence conflict resolution', () => {
     expect(result.active).toEqual([]);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0]?.evidenceIds).toEqual(['E-A', 'E-B', 'E-C']);
+  });
+
+  it('keeps same-value historical records superseded during a current conflict', () => {
+    const oldPermit = makeEvidence({
+      evidenceId: 'OLD-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-16T12:00:00Z',
+      value: 'VALID',
+    });
+    const newPermit = makeEvidence({
+      evidenceId: 'NEW-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-17T04:00:00Z',
+      value: 'VALID',
+    });
+    const lead = makeEvidence({
+      evidenceId: 'LEAD',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+    });
+
+    const result = resolve([oldPermit, newPermit, lead]);
+    const accountedIds = [
+      ...activeIds(result.active),
+      ...supersededIds(result.superseded),
+      ...(result.conflicts[0]?.evidenceIds ?? []),
+    ].sort();
+
+    expect(result.active).toEqual([]);
+    expect(supersededIds(result.superseded)).toEqual(['OLD-PERMIT']);
+    expect(result.superseded[0]?.envelope).toBe(oldPermit.envelope);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]?.evidenceIds).toEqual(['LEAD', 'NEW-PERMIT']);
+    expect(result.conflicts[0]?.evidenceIds).not.toContain('OLD-PERMIT');
+    expect(accountedIds).toEqual(['LEAD', 'NEW-PERMIT', 'OLD-PERMIT']);
+  });
+
+  it('assigns the same hashed conflict ID when current contenders are reversed', () => {
+    const permit = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const lead = makeEvidence({
+      evidenceId: 'E-LEAD',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+    });
+
+    const forward = resolve([permit, lead]);
+    const reversed = resolve([lead, permit]);
+
+    expect(forward.conflicts[0]?.conflictId).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
+    expect(reversed.conflicts[0]?.conflictId).toBe(forward.conflicts[0]?.conflictId);
+  });
+
+  it('changes conflict ID when a current contender identity or content changes', () => {
+    const permit = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const lead = makeEvidence({
+      evidenceId: 'E-LEAD',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+    });
+    const renamedLead = makeEvidence({
+      evidenceId: 'E-LEAD-2',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+    });
+    const rewrittenLead = makeEvidence({
+      evidenceId: 'E-LEAD',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+      payloadExtra: 'amended-note',
+    });
+
+    const baseline = resolve([permit, lead]).conflicts[0]?.conflictId;
+    const renamed = resolve([permit, renamedLead]).conflicts[0]?.conflictId;
+    const rewritten = resolve([permit, rewrittenLead]).conflicts[0]?.conflictId;
+
+    expect(baseline).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
+    expect(renamed).not.toBe(baseline);
+    expect(rewritten).not.toBe(baseline);
+    expect(rewritten).not.toBe(renamed);
+  });
+});
+
+describe('scoped evidence provenance', () => {
+  it('changes scopedFingerprint when scope or value changes without altering envelope content', () => {
+    const envelope = createEvidenceEnvelope({
+      evidenceId: 'E-BIND',
+      productionId: PRODUCTION_ID,
+      kind: 'LOCATION_ACCESS',
+      sourceType: 'EXTERNAL_PROVIDER',
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      trustState: 'LIVE',
+      observedAt: '2026-09-17T04:00:00Z',
+      receivedAt: '2026-09-17T04:01:00Z',
+      payload: { value: 'VALID' },
+    });
+    const baseline = createScopedEvidence({
+      envelope,
+      scope: LOCATION_SCOPE,
+      value: 'VALID',
+    });
+    const changedScope = createScopedEvidence({
+      envelope,
+      scope: PERSON_SCOPE,
+      value: 'VALID',
+    });
+    const changedValue = createScopedEvidence({
+      envelope,
+      scope: LOCATION_SCOPE,
+      value: 'REVOKED',
+    });
+
+    expect(baseline.scopedFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(changedScope.scopedFingerprint).not.toBe(baseline.scopedFingerprint);
+    expect(changedValue.scopedFingerprint).not.toBe(baseline.scopedFingerprint);
+    expect(changedScope.scopedFingerprint).not.toBe(changedValue.scopedFingerprint);
+    expect(baseline.envelope.contentFingerprint).toBe(envelope.contentFingerprint);
+    expect(changedScope.envelope.contentFingerprint).toBe(envelope.contentFingerprint);
+    expect(changedValue.envelope.contentFingerprint).toBe(envelope.contentFingerprint);
+    expect(baseline.envelope).toBe(envelope);
+  });
+
+  it('rejects tampered scope that retains the original scoped fingerprint', () => {
+    const original = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const tampered = {
+      ...original,
+      scope: PERSON_SCOPE,
+    };
+
+    expect(tampered.scopedFingerprint).toBe(original.scopedFingerprint);
+    expect(() => resolve([tampered])).toThrow(/scoped fingerprint mismatch/);
+  });
+
+  it('rejects tampered value that retains the original scoped fingerprint', () => {
+    const original = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const tampered = {
+      ...original,
+      value: 'REVOKED',
+    };
+
+    expect(tampered.scopedFingerprint).toBe(original.scopedFingerprint);
+    expect(() => resolve([tampered])).toThrow(/scoped fingerprint mismatch/);
+  });
+
+  it('rejects mixed productionIds without merging resolutions', () => {
+    const localPermit = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const foreignLead = makeEvidence({
+      evidenceId: 'E-LEAD',
+      productionId: 'BCN-DEMO-02',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      value: 'REVOKED',
+    });
+
+    expect(() => resolve([localPermit, foreignLead])).toThrow(/mixed productionIds/);
+    expect(() => resolve([foreignLead, localPermit])).toThrow(/mixed productionIds/);
   });
 });
 
