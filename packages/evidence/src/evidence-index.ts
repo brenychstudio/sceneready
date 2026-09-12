@@ -231,7 +231,7 @@ function resolveScope(
         scope: representative.scope,
         contenders: unresolved.map((item) => ({
           evidenceId: item.envelope.evidenceId,
-          contentFingerprint: item.envelope.contentFingerprint,
+          scopedFingerprint: item.scopedFingerprint,
         })),
       }),
     ],

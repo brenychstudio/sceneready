@@ -14,7 +14,7 @@ export interface EvidenceConflict {
 
 export interface EvidenceConflictContender {
   readonly evidenceId: string;
-  readonly contentFingerprint: string;
+  readonly scopedFingerprint: string;
 }
 
 function compareOrdinal(left: string, right: string): number {
@@ -35,7 +35,7 @@ function compareContender(
   if (idOrder !== 0) {
     return idOrder;
   }
-  return compareOrdinal(left.contentFingerprint, right.contentFingerprint);
+  return compareOrdinal(left.scopedFingerprint, right.scopedFingerprint);
 }
 
 export function createEvidenceConflict(input: {
@@ -49,8 +49,8 @@ export function createEvidenceConflict(input: {
   );
   const conflictId = `CONFLICT:${fingerprintEvidenceContent({
     contenders: contenders.map((item) => ({
-      contentFingerprint: item.contentFingerprint,
       evidenceId: item.evidenceId,
+      scopedFingerprint: item.scopedFingerprint,
     })),
     productionId: input.productionId,
     scope: input.scope,

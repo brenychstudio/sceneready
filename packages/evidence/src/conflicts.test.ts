@@ -484,6 +484,95 @@ describe('evidence conflict resolution', () => {
     expect(rewritten).not.toBe(baseline);
     expect(rewritten).not.toBe(renamed);
   });
+
+  it('quarantines contradictory same-class document authority facts', () => {
+    const olderValid = makeEvidence({
+      evidenceId: 'E-DOC-VALID',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-16T12:00:00Z',
+      value: 'VALID',
+    });
+    const newerRevoked = makeEvidence({
+      evidenceId: 'E-DOC-REVOKED',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-17T04:00:00Z',
+      value: 'REVOKED',
+    });
+
+    const result = resolve([olderValid, newerRevoked]);
+
+    expect(result.active).toEqual([]);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]?.status).toBe('UNRESOLVED');
+    expect(result.conflicts[0]?.scope).toBe(DOCUMENT_SCOPE);
+    expect(result.conflicts[0]?.evidenceIds).toEqual(['E-DOC-REVOKED', 'E-DOC-VALID']);
+  });
+
+  it('changes conflict ID when the same envelope is bound to a different scoped value', () => {
+    const permit = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      value: 'VALID',
+    });
+    const envelope = createEvidenceEnvelope({
+      evidenceId: 'E-LEAD',
+      productionId: PRODUCTION_ID,
+      kind: 'LOCATION_ACCESS',
+      sourceType: 'EXTERNAL_PROVIDER',
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      trustState: 'LIVE',
+      observedAt: '2026-09-17T04:00:00Z',
+      receivedAt: '2026-09-17T04:01:00Z',
+      payload: { value: 'REVOKED' },
+    });
+    const revoked = createScopedEvidence({
+      envelope,
+      scope: LOCATION_SCOPE,
+      value: 'REVOKED',
+    });
+    const suspended = createScopedEvidence({
+      envelope,
+      scope: LOCATION_SCOPE,
+      value: 'SUSPENDED',
+    });
+
+    expect(revoked.envelope).toBe(envelope);
+    expect(suspended.envelope).toBe(envelope);
+    expect(revoked.envelope.contentFingerprint).toBe(suspended.envelope.contentFingerprint);
+    expect(revoked.scopedFingerprint).not.toBe(suspended.scopedFingerprint);
+
+    const revokedId = resolve([permit, revoked]).conflicts[0]?.conflictId;
+    const suspendedId = resolve([permit, suspended]).conflicts[0]?.conflictId;
+
+    expect(revokedId).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
+    expect(suspendedId).not.toBe(revokedId);
+  });
+
+  it('assigns the same conflict ID when same-class contradictory contenders are reversed', () => {
+    const olderValid = makeEvidence({
+      evidenceId: 'E-DOC-VALID',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-16T12:00:00Z',
+      value: 'VALID',
+    });
+    const newerRevoked = makeEvidence({
+      evidenceId: 'E-DOC-REVOKED',
+      scope: DOCUMENT_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      observedAt: '2026-09-17T04:00:00Z',
+      value: 'REVOKED',
+    });
+
+    const forward = resolve([olderValid, newerRevoked]);
+    const reversed = resolve([newerRevoked, olderValid]);
+
+    expect(forward.conflicts[0]?.conflictId).toMatch(/^CONFLICT:[a-f0-9]{64}$/);
+    expect(reversed.conflicts[0]?.conflictId).toBe(forward.conflicts[0]?.conflictId);
+  });
 });
 
 describe('scoped evidence provenance', () => {
