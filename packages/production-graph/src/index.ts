@@ -24,3 +24,22 @@ export {
   type GraphNodeType,
   type ProductionGraphNode,
 } from './node.js';
+export { propagateRisk, traceCausalImpact } from './propagate.js';
+export {
+  compareRiskSeverity,
+  impactDedupeKey,
+  isRiskSeverity,
+  maxRiskSeverity,
+  RISK_SEVERITIES,
+  type CausalImpact,
+  type CausalPath,
+  type CausalTraceInput,
+  type CausalTraceResult,
+  type PropagatedRisk,
+  type RejectedRiskInput,
+  type RiskIncidentInput,
+  type RiskPropagationInput,
+  type RiskPropagationResult,
+  type RiskSeverity,
+} from './risk.js';
+export { causalEdgeId, compareCausalPaths, serializeCausalPath } from './trace.js';
