@@ -52,6 +52,15 @@ export {
   type ReadinessEvaluationInput,
   type SubjectProof,
 } from './gates.js';
+export {
+  calculateOutcomeMetrics,
+  type DeliverableOutcomeFact,
+  type MonetaryImpact,
+  type OperationalOutcomeMetrics,
+  type OutcomeCostProfile,
+  type ReadinessComparison,
+  type RiskTransition,
+} from './outcomes.js';
 export { DecisionPolicySchema, type DecisionPolicy } from './policy-schema.js';
 export { SCENEREADY_POLICY_V1 } from './policy-v1.js';
 export {

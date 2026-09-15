@@ -4,5 +4,12 @@
     "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../../packages/evidence" },
+    { "path": "../../packages/production-graph" },
+    { "path": "../../packages/production-pack" },
+    { "path": "../../packages/readiness-engine" }
+  ]
 }
