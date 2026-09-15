@@ -34,6 +34,10 @@ describe('SR-02 evidence report', () => {
     expect(report.assessments.R2.confidenceScore).toBe(96);
     expect(report.assessments.R2.status).toBe('AT_RISK');
     expect(report.assessments.R2.certification).toBe('CERTIFIED');
+    expect(report.metrics.protectedCriticalDeliverables).toBe(2);
+    expect(report.metrics.predictedStudioDelayReductionMinutes).toBe(15);
+    expect(report.metrics.monetaryImpact).toBeNull();
+    expect(report.lifecycle.reasonCodes).toContain('ACTIVITY_IMMUTABLE_AFTER_COMPLETION');
     expect(nowSpy).not.toHaveBeenCalled();
   });
 
@@ -79,7 +83,8 @@ describe('SR-02 evidence report', () => {
     );
     expect(JSON.stringify(second)).toBe(JSON.stringify(first));
     expect(JSON.stringify(first)).not.toMatch(/Date\.now/);
-    expect(JSON.stringify(first)).not.toMatch(/C:\\\\PROJECTS/i);
+    expect(JSON.stringify(first)).not.toMatch(/generationTimestamp/);
+    expect(JSON.stringify(first)).not.toMatch(/hostname/i);
   });
 
   it('prints JSON only on stdout when invoked as a CLI', () => {

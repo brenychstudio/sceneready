@@ -2,6 +2,11 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  ACTIVITY_LIFECYCLE_STATES,
+  LIFECYCLE_REASON_CODES,
+  PRODUCTION_PHASES,
+} from '@sceneready/domain';
 import { createEvidenceEnvelope, fingerprintEvidenceContent } from '@sceneready/evidence';
 import {
   compileProductionGraph,
@@ -19,12 +24,15 @@ import {
   type ProductionPack,
 } from '@sceneready/production-pack';
 import {
+  calculateOutcomeMetrics,
   evaluateProductionReadiness,
   HARD_GATE_IDS,
   PRODUCTION_DOMAINS,
   SCENEREADY_POLICY_V1,
+  type OperationalOutcomeMetrics,
   type ProductionEvaluationInput,
   type ProductionReadinessAssessment,
+  type ReadinessComparison,
   type ReadinessImpactFact,
   type ReadinessRiskFact,
 } from '@sceneready/readiness-engine';
@@ -88,6 +96,12 @@ export interface Sr02EvidenceReport {
     readonly R1: Sr02AssessmentRecord;
     readonly R2: Sr02R2AssessmentRecord;
   };
+  readonly lifecycle: {
+    readonly productionPhases: readonly string[];
+    readonly activityStates: readonly string[];
+    readonly reasonCodes: readonly string[];
+  };
+  readonly metrics: OperationalOutcomeMetrics;
 }
 
 function compareOrdinal(left: string, right: string): number {
@@ -379,6 +393,48 @@ function r1Input(): ProductionEvaluationInput {
   });
 }
 
+function recoveredComparison(
+  before: ProductionReadinessAssessment,
+  after: ProductionReadinessAssessment,
+): ReadinessComparison {
+  return {
+    before,
+    after,
+    deliverableOutcomes: [
+      {
+        deliverableId: 'DELIVERABLE-D1',
+        importance: 'CRITICAL',
+        beforeProtected: false,
+        afterProtected: true,
+      },
+      {
+        deliverableId: 'DELIVERABLE-D5',
+        importance: 'CRITICAL',
+        beforeProtected: false,
+        afterProtected: true,
+      },
+    ],
+    preservedCreativeEnvelopeIds: ['ENVELOPE-EIXAMPLE-LOOK', 'ENVELOPE-GOTHIC-LOOK'],
+    beforePredictedStudioDelayMinutes: 25,
+    afterPredictedStudioDelayMinutes: 10,
+    affectedPersonIds: ['PERSON-MODEL', 'PERSON-PRODUCTION-LEAD'],
+    riskTransitions: [
+      {
+        riskId: GOTHIC_RISK_ID,
+        subjectId: 'ACT-GOTHIC-LOOK-03',
+        beforeSeverity: 'CRITICAL',
+        afterSeverity: null,
+      },
+      {
+        riskId: STUDIO_RISK_ID,
+        subjectId: 'ACT-STUDIO-LOAD-IN',
+        beforeSeverity: 'MEDIUM',
+        afterSeverity: 'LOW',
+      },
+    ],
+  };
+}
+
 function r2Input(): ProductionEvaluationInput {
   return baseInput({
     risks: r2Risks(),
@@ -485,10 +541,20 @@ export async function generateSr02EvidenceReport(): Promise<Sr02EvidenceReport> 
     incidents: r2Risks(),
   });
 
-  const r0 = snapshotAssessment(evaluateProductionReadiness(r0Input()));
-  const r1 = snapshotAssessment(evaluateProductionReadiness(r1Input()));
+  const r0Evaluated = evaluateProductionReadiness(r0Input());
+  const r1Evaluated = evaluateProductionReadiness(r1Input());
   const r2Evaluated = evaluateProductionReadiness(r2Input());
+  const r0 = snapshotAssessment(r0Evaluated);
+  const r1 = snapshotAssessment(r1Evaluated);
   const r2 = snapshotAssessment(r2Evaluated);
+  const metrics = calculateOutcomeMetrics(recoveredComparison(r2Evaluated, r1Evaluated));
+  if (
+    metrics.protectedCriticalDeliverables !== 2 ||
+    metrics.predictedStudioDelayReductionMinutes !== 15 ||
+    metrics.monetaryImpact !== null
+  ) {
+    throw new Error('outcome metrics drifted from explicit comparison facts');
+  }
 
   assertProtected(
     r0,
@@ -623,6 +689,12 @@ export async function generateSr02EvidenceReport(): Promise<Sr02EvidenceReport> 
         impacts: Object.freeze(impacts),
       }),
     }),
+    lifecycle: Object.freeze({
+      productionPhases: PRODUCTION_PHASES,
+      activityStates: ACTIVITY_LIFECYCLE_STATES,
+      reasonCodes: LIFECYCLE_REASON_CODES,
+    }),
+    metrics,
   });
 }
 

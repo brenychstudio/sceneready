@@ -1,7 +1,9 @@
 # Readiness Mathematics
 
 This document describes the implemented SR-02 readiness, confidence, and
-certification mathematics. It is not a scoring-policy change.
+certification mathematics. Constants are taken from `SR_SCORE_V1` and
+`SCENEREADY_POLICY_V1`. It is not a scoring-policy change and does not
+implement SR-03 Shadow Simulation.
 
 ## Versions
 
@@ -9,7 +11,7 @@ certification mathematics. It is not a scoring-policy change.
 - Scoring model: `SR-SCORE-v1`
 - Graph schema: `SR-GRAPH-v1`
 
-Policy floors remain:
+Policy floors from source:
 
 - `readiness.readyFloor = 85`
 - `readiness.atRiskFloor = 60`
@@ -30,11 +32,20 @@ Scoring consumes the six canonical `DomainHealth` states. It does not
 re-aggregate raw `DomainFact` records and does not apply a second gate
 penalty.
 
-## Readiness score
+## Baseline and clamp
 
-Readiness is an integer in `0..100`:
+Baseline is `100`.
 
 `readinessScore = clamp(100 - domainPenalties - impactPenalties)`
+
+Clamp is inclusive `0..100`.
+
+## Six canonical domain states
+
+Exactly one score is produced for each domain:
+
+`PEOPLE`, `LOCATION`, `TIME_ENVIRONMENT`, `EQUIPMENT`, `DOCUMENTS_RIGHTS`,
+`LOGISTICS`.
 
 Domain penalties from `SR_SCORE_V1.domainPenalty`:
 
@@ -44,52 +55,72 @@ Domain penalties from `SR_SCORE_V1.domainPenalty`:
 | UNRESOLVED         | 10      |
 | FAILED             | 22      |
 
-Exactly one score is produced for each domain:
+## Deliverable-weighted causal impact penalties
 
-`PEOPLE`, `LOCATION`, `TIME_ENVIRONMENT`, `EQUIPMENT`, `DOCUMENTS_RIGHTS`,
-`LOGISTICS`.
-
-Causal impact penalties use Task-6 incident+deliverable deduplication. Duplicate
-`(incidentId, deliverableId)` facts are merged before scoring. Separate
+Causal impact penalties use Task-6 incident + final-deliverable
+deduplication. Duplicate `(incidentId, deliverableId)` facts are merged
+before scoring. Intermediate graph nodes are not penalized. Separate
 incidents remain separate penalty sources.
 
 `penalty = severityWeight[severity] * importanceWeight[importance]`
 
-| Severity | Weight | Importance | Weight |
-| -------- | ------ | ---------- | ------ |
-| LOW      | 1      | LOW        | 1      |
-| MEDIUM   | 2      | MEDIUM     | 1      |
-| HIGH     | 4      | HIGH       | 2      |
-| CRITICAL | 6      | CRITICAL   | 3      |
+Severity weights from `SR_SCORE_V1.severityWeight`:
 
-Healthy domains with zero causal penalties leave headroom below 100. The model
-is not capped at a scenario label.
+| Severity | Weight |
+| -------- | ------ |
+| LOW      | 1      |
+| MEDIUM   | 2      |
+| HIGH     | 4      |
+| CRITICAL | 6      |
 
-Confidence facts do not alter `readinessScore`.
+Deliverable importance weights from `SR_SCORE_V1.importanceWeight`:
 
-## Confidence score
+| Importance | Weight |
+| ---------- | ------ |
+| LOW        | 1      |
+| MEDIUM     | 1      |
+| HIGH       | 2      |
+| CRITICAL   | 3      |
 
-Evidence Confidence is a separate 0..100 integer. It averages required-scope
-qualities. Unresolved, missing, conflicted, or stale required scopes are listed
-explicitly and cannot be silently treated as proven failure.
+Healthy domains with zero causal penalties leave headroom below 100. The
+model is not capped at a scenario label.
+
+## Confidence is independent from readiness
+
+Evidence Confidence is a separate 0..100 integer. Changing confidence facts
+while holding domains, gates, and causal impacts constant does not change
+`readinessScore`.
 
 ## Operational status
 
 Exactly `READY`, `AT_RISK`, or `BLOCKED`.
 
-- Any known failed hard gate => `BLOCKED`
+- Any known failed hard gate => `BLOCKED` (hard-gate override is absolute)
 - `READY` requires zero failed gates, zero unresolved gates, readiness at or
   above `readyFloor`, no HIGH or CRITICAL risk, and no unresolved required
   evidence
 - otherwise => `AT_RISK`
 
-CRITICAL risk is not BLOCKED by itself.
+CRITICAL risk alone is not BLOCKED.
 
 ## Certification
 
 Exactly `CERTIFIED`, `DEGRADED`, or `INSUFFICIENT`.
 
-Certification answers whether the assessment is sufficiently evidenced. A failed
-hard gate can still be `CERTIFIED` when required evidence is complete and
-confidence meets `certifiedFloor`. Unresolved required evidence cannot be
-`CERTIFIED`. Confidence below `degradedFloor` is `INSUFFICIENT`.
+Certification answers whether the assessment is sufficiently evidenced, not
+whether production is operationally ready. A failed hard gate can still be
+`CERTIFIED` when required evidence is complete and confidence meets
+`certifiedFloor`. Unresolved required evidence cannot be `CERTIFIED`.
+Confidence below `degradedFloor` is `INSUFFICIENT`.
+
+## Protected canonical outputs
+
+Computed by the same `evaluateProductionReadiness()` function:
+
+- R0: readiness 78 / confidence 94 / `BLOCKED` / `CERTIFIED`; only `RIGHTS`
+  failed
+- R1: readiness 86 / confidence 96 / `READY` / `CERTIFIED`
+- R2: readiness 74 / confidence 96 / `AT_RISK` / `CERTIFIED`
+
+The same deterministic scoring function is intended for later live and
+shadow evaluation. Shadow Simulation itself is not implemented in SR-02.

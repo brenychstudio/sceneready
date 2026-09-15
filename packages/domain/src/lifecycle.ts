@@ -18,6 +18,14 @@ export const ACTIVITY_LIFECYCLE_STATES = ['PENDING', 'ACTIVE', 'COMPLETED'] as c
 
 export type ActivityLifecycleState = (typeof ACTIVITY_LIFECYCLE_STATES)[number];
 
+export const LIFECYCLE_REASON_CODES = [
+  'PHASE_SEQUENCE_MONOTONIC',
+  'COMPLETE_IS_TERMINAL',
+  'ACTIVITY_IMMUTABLE_AFTER_COMPLETION',
+] as const;
+
+export type LifecycleReasonCode = (typeof LIFECYCLE_REASON_CODES)[number];
+
 export type PhaseTransitionDecision =
   { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
 

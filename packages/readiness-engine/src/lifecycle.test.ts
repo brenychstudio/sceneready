@@ -173,7 +173,7 @@ describe('production lifecycle', () => {
     });
   });
 
-  it('rejects SHIFT_ACTIVITY after activity completion during EIXAMPLE_ACTIVE', () => {
+  it('rejects SHIFT_ACTIVITY on a COMPLETED Gothic activity during EIXAMPLE_ACTIVE', () => {
     const nowSpy = vi.spyOn(Date, 'now');
     const decision = canInterveneOnActivity({
       productionPhase: 'EIXAMPLE_ACTIVE',
