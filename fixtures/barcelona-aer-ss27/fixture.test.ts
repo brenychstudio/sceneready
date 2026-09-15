@@ -131,6 +131,39 @@ describe('BCN-DEMO-v1 fixture', () => {
     });
   });
 
+  it('binds look-level solar creative envelopes to Gothic and Eixample only', async () => {
+    const result = validateProductionPack(await loadCanonicalBarcelonaPack());
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const gothic = result.pack.locations.find((item) => item.id === 'LOC-GOTHIC');
+    const eixample = result.pack.locations.find((item) => item.id === 'LOC-EIXAMPLE');
+    const studio = result.pack.locations.find((item) => item.id === 'LOC-STUDIO-NORTH');
+    const envelopeByDeliverable = Object.fromEntries(
+      result.pack.deliverables.map((item) => [item.id, item.creativeIntentEnvelopeId]),
+    );
+
+    expect(gothic?.kind).toBe('EXTERIOR');
+    expect(eixample?.kind).toBe('EXTERIOR');
+    expect(studio?.kind).toBe('STUDIO');
+    expect(gothic?.solarCreativeIntent?.envelopeId).toBe('ENVELOPE-GOTHIC-LOOK');
+    expect(eixample?.solarCreativeIntent?.envelopeId).toBe('ENVELOPE-EIXAMPLE-LOOK');
+    expect(gothic?.solarCreativeIntent?.shadowIntent).toMatch(/narrow-street/i);
+    expect(eixample?.solarCreativeIntent?.shadowIntent).toMatch(/fa[cç]ade/i);
+    expect(studio?.solarCreativeIntent).toBeUndefined();
+    expect(envelopeByDeliverable).toEqual({
+      'DELIVERABLE-D1': 'ENVELOPE-GOTHIC-LOOK',
+      'DELIVERABLE-D2': 'ENVELOPE-GOTHIC-LOOK',
+      'DELIVERABLE-D3': 'ENVELOPE-EIXAMPLE-LOOK',
+      'DELIVERABLE-D4': 'ENVELOPE-EIXAMPLE-LOOK',
+      'DELIVERABLE-D5': undefined,
+      'DELIVERABLE-D6': undefined,
+      'DELIVERABLE-D7': undefined,
+    });
+  });
+
   it('freezes canonical crew, activity, deliverable, and document identities', async () => {
     const result = validateProductionPack(await loadCanonicalBarcelonaPack());
     expect(result.ok).toBe(true);

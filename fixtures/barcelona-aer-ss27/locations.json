@@ -10,7 +10,20 @@
     "visualIntent": "Early sidelight on stone streets and tight historic facades.",
     "accessNotes": "Synthetic pedestrian-access window for the Gothic exterior block.",
     "environmentNotes": "Narrow streets, reflected warm stone, limited vehicle access.",
-    "logisticsNotes": "Hand-carry from nearby drop-off; keep kit compact for alley setups."
+    "logisticsNotes": "Hand-carry from nearby drop-off; keep kit compact for alley setups.",
+    "solarCreativeIntent": {
+      "envelopeId": "ENVELOPE-GOTHIC-LOOK",
+      "preferredLocalTimeStart": "07:20",
+      "preferredLocalTimeEnd": "08:10",
+      "acceptableLocalTimeStart": "07:10",
+      "acceptableLocalTimeEnd": "08:30",
+      "preferredAzimuthDegrees": { "min": 82, "max": 91 },
+      "acceptableAzimuthDegrees": { "min": 70, "max": 100 },
+      "preferredElevationDegrees": { "min": -2, "max": 2 },
+      "acceptableElevationDegrees": { "min": -3, "max": 12 },
+      "shadowIntent": "Narrow-street shadow geometry on stone texture; high sensitivity to sun angle.",
+      "importance": "CRITICAL"
+    }
   },
   {
     "id": "LOC-EIXAMPLE",
@@ -23,7 +36,20 @@
     "visualIntent": "Open-grid modernist facades with broader daylight and clean sidewalk lines.",
     "accessNotes": "Synthetic sidewalk working window for the Eixample exterior block.",
     "environmentNotes": "Wide avenues, pale stone, higher ambient traffic and daylight.",
-    "logisticsNotes": "Curb-side unload; keep a clear pedestrian lane during setups."
+    "logisticsNotes": "Curb-side unload; keep a clear pedestrian lane during setups.",
+    "solarCreativeIntent": {
+      "envelopeId": "ENVELOPE-EIXAMPLE-LOOK",
+      "preferredLocalTimeStart": "09:05",
+      "preferredLocalTimeEnd": "09:50",
+      "acceptableLocalTimeStart": "08:55",
+      "acceptableLocalTimeEnd": "10:00",
+      "preferredAzimuthDegrees": { "min": 100, "max": 110 },
+      "acceptableAzimuthDegrees": { "min": 90, "max": 130 },
+      "preferredElevationDegrees": { "min": 16, "max": 22 },
+      "acceptableElevationDegrees": { "min": 10, "max": 30 },
+      "shadowIntent": "Façade geometry along broader urban axes; directional architectural shadows with high sensitivity to sun orientation.",
+      "importance": "HIGH"
+    }
   },
   {
     "id": "LOC-STUDIO-NORTH",

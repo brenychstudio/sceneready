@@ -117,7 +117,7 @@ describe('Production Pack fingerprint', () => {
   it('pins the canonical BCN-DEMO-v1 fingerprint', async () => {
     const pack = await loadCanonicalBarcelonaPack();
     expect(fingerprintProductionPack(pack)).toBe(
-      'a47651ad316ebbd759ae2f05aabf20fc882cfe6ff7e7c31681fd6ddaf2b13bbf',
+      '13a1183c848d5762764da1f646f2ffc97321f976bb8c3ff340425a99117263be',
     );
   });
 

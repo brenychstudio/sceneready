@@ -18,7 +18,8 @@
       "EQ-LENS-PRIMARY",
       "EQ-MEDIA-PRIMARY",
       "EQ-POWER-PRIMARY"
-    ]
+    ],
+    "creativeIntentEnvelopeId": "ENVELOPE-GOTHIC-LOOK"
   },
   {
     "id": "DELIVERABLE-D2",
@@ -28,7 +29,8 @@
     "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-GOTHIC"],
     "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL", "PERSON-MOTION-OPERATOR"],
     "requiredLocationIds": ["LOC-GOTHIC"],
-    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"]
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"],
+    "creativeIntentEnvelopeId": "ENVELOPE-GOTHIC-LOOK"
   },
   {
     "id": "DELIVERABLE-D3",
@@ -49,7 +51,8 @@
       "EQ-LENS-PRIMARY",
       "EQ-MEDIA-PRIMARY",
       "EQ-POWER-PRIMARY"
-    ]
+    ],
+    "creativeIntentEnvelopeId": "ENVELOPE-EIXAMPLE-LOOK"
   },
   {
     "id": "DELIVERABLE-D4",
@@ -59,7 +62,8 @@
     "requiredDocumentIds": ["DOCUMENT-LOCATION-ACCESS-EIXAMPLE"],
     "requiredPersonIds": ["PERSON-PRODUCTION-LEAD", "PERSON-MODEL", "PERSON-MOTION-OPERATOR"],
     "requiredLocationIds": ["LOC-EIXAMPLE"],
-    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"]
+    "requiredEquipmentIds": ["EQ-BODY-PRIMARY", "EQ-MOTION-GIMBAL", "EQ-MEDIA-PRIMARY"],
+    "creativeIntentEnvelopeId": "ENVELOPE-EIXAMPLE-LOOK"
   },
   {
     "id": "DELIVERABLE-D5",

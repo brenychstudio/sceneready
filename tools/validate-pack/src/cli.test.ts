@@ -74,7 +74,7 @@ describe('pack:validate CLI', () => {
     }
     const record = parsed as Record<string, unknown>;
     expect(record.packFingerprint).toBe(
-      'a47651ad316ebbd759ae2f05aabf20fc882cfe6ff7e7c31681fd6ddaf2b13bbf',
+      '13a1183c848d5762764da1f646f2ffc97321f976bb8c3ff340425a99117263be',
     );
     expect(record.activatedAt).toBe('2026-09-17T03:45:00Z');
     expect(nowSpy).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe('pack:validate CLI', () => {
         fixtureVersion: 'BCN-DEMO-v1',
         policyVersion: 'SR-POLICY-v1',
         graphSchemaVersion: 'SR-GRAPH-v1',
-        packFingerprint: 'a47651ad316ebbd759ae2f05aabf20fc882cfe6ff7e7c31681fd6ddaf2b13bbf',
+        packFingerprint: '13a1183c848d5762764da1f646f2ffc97321f976bb8c3ff340425a99117263be',
         activatedAt: '2026-09-17T03:45:00Z',
       })}\n`,
     );

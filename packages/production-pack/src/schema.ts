@@ -47,16 +47,53 @@ const PersonSchema = z.strictObject({
   critical: z.boolean(),
 });
 
-const LocationSchema = z.strictObject({
-  id: PackEntityIdSchema,
-  name: z.string().min(1),
-  kind: z.enum(['EXTERIOR', 'STUDIO']),
-  coordinates: CoordinatesSchema,
-  visualIntent: z.string().min(1),
-  accessNotes: z.string().min(1),
-  environmentNotes: z.string().min(1),
-  logisticsNotes: z.string().min(1),
+const DegreeRangeSchema = z.strictObject({
+  min: z.number().gte(-360).lte(360),
+  max: z.number().gte(-360).lte(360),
 });
+
+const SolarCreativeIntentSchema = z.strictObject({
+  envelopeId: PackEntityIdSchema,
+  preferredLocalTimeStart: ProductionTimeSchema,
+  preferredLocalTimeEnd: ProductionTimeSchema,
+  acceptableLocalTimeStart: ProductionTimeSchema,
+  acceptableLocalTimeEnd: ProductionTimeSchema,
+  preferredAzimuthDegrees: DegreeRangeSchema,
+  acceptableAzimuthDegrees: DegreeRangeSchema,
+  preferredElevationDegrees: DegreeRangeSchema,
+  acceptableElevationDegrees: DegreeRangeSchema,
+  shadowIntent: z.string().min(1),
+  importance: z.enum(['CRITICAL', 'HIGH', 'MEDIUM']),
+});
+
+const LocationSchema = z
+  .strictObject({
+    id: PackEntityIdSchema,
+    name: z.string().min(1),
+    kind: z.enum(['EXTERIOR', 'STUDIO']),
+    coordinates: CoordinatesSchema,
+    visualIntent: z.string().min(1),
+    accessNotes: z.string().min(1),
+    environmentNotes: z.string().min(1),
+    logisticsNotes: z.string().min(1),
+    solarCreativeIntent: SolarCreativeIntentSchema.optional(),
+  })
+  .superRefine((location, ctx) => {
+    if (location.kind === 'STUDIO' && location.solarCreativeIntent !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['solarCreativeIntent'],
+        message: 'STUDIO locations cannot declare a solar creative-intent envelope.',
+      });
+    }
+    if (location.kind === 'EXTERIOR' && location.solarCreativeIntent === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['solarCreativeIntent'],
+        message: 'EXTERIOR locations require a solar creative-intent envelope.',
+      });
+    }
+  });
 
 const ActivityConstraintSchema = z.enum([
   'FIXED',
@@ -98,6 +135,7 @@ const DeliverableSchema = z.strictObject({
   requiredPersonIds: z.array(PackEntityIdSchema),
   requiredLocationIds: z.array(PackEntityIdSchema),
   requiredEquipmentIds: z.array(PackEntityIdSchema),
+  creativeIntentEnvelopeId: PackEntityIdSchema.optional(),
 });
 
 const EquipmentAssetSchema = z.strictObject({
@@ -220,21 +258,63 @@ const ProductionIdentitySchema = z.strictObject({
   timeZone: ProductionTimeZoneSchema,
 });
 
-export const ProductionPackSchema = z.strictObject({
-  fixtureVersion: FixtureVersionSchema,
-  policyVersion: PolicyVersionSchema,
-  syntheticDataDeclaration: z.literal(true),
-  production: ProductionIdentitySchema,
-  crew: z.array(PersonSchema).min(1),
-  locations: z.array(LocationSchema).min(1),
-  schedule: z.array(ActivitySchema).min(1),
-  deliverables: z.array(DeliverableSchema).min(1),
-  equipment: z.array(EquipmentAssetSchema).min(1),
-  capturePaths: z.array(CapturePathSchema).min(1),
-  rights: z.array(RightsDocumentSchema).min(1),
-  priorities: PriorityProfileSchema,
-  hardGates: z.array(HardGateSchema).min(1),
-  evidence: z.array(EvidenceReferenceSchema).min(1),
-});
+export const ProductionPackSchema = z
+  .strictObject({
+    fixtureVersion: FixtureVersionSchema,
+    policyVersion: PolicyVersionSchema,
+    syntheticDataDeclaration: z.literal(true),
+    production: ProductionIdentitySchema,
+    crew: z.array(PersonSchema).min(1),
+    locations: z.array(LocationSchema).min(1),
+    schedule: z.array(ActivitySchema).min(1),
+    deliverables: z.array(DeliverableSchema).min(1),
+    equipment: z.array(EquipmentAssetSchema).min(1),
+    capturePaths: z.array(CapturePathSchema).min(1),
+    rights: z.array(RightsDocumentSchema).min(1),
+    priorities: PriorityProfileSchema,
+    hardGates: z.array(HardGateSchema).min(1),
+    evidence: z.array(EvidenceReferenceSchema).min(1),
+  })
+  .superRefine((pack, ctx) => {
+    const envelopes = new Map<string, string>();
+    for (const [index, location] of pack.locations.entries()) {
+      const envelope = location.solarCreativeIntent;
+      if (envelope === undefined) {
+        continue;
+      }
+      if (envelopes.has(envelope.envelopeId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['locations', index, 'solarCreativeIntent', 'envelopeId'],
+          message: `Duplicate creative intent envelope id '${envelope.envelopeId}'.`,
+        });
+        continue;
+      }
+      envelopes.set(envelope.envelopeId, location.id);
+    }
+
+    for (const [index, deliverable] of pack.deliverables.entries()) {
+      const envelopeId = deliverable.creativeIntentEnvelopeId;
+      if (envelopeId === undefined) {
+        continue;
+      }
+      const locationId = envelopes.get(envelopeId);
+      if (locationId === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['deliverables', index, 'creativeIntentEnvelopeId'],
+          message: `Unknown creative intent envelope '${envelopeId}'.`,
+        });
+        continue;
+      }
+      if (!deliverable.requiredLocationIds.includes(locationId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['deliverables', index, 'creativeIntentEnvelopeId'],
+          message: `Creative intent envelope '${envelopeId}' is not bound to a required location.`,
+        });
+      }
+    }
+  });
 
 export type ProductionPack = z.infer<typeof ProductionPackSchema>;

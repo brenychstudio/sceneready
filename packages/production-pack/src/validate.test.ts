@@ -595,4 +595,85 @@ describe('Production Pack validation', () => {
     (secondsTime.schedule as JsonObject[])[0]!.endLocal = '10:00:00';
     expect(issueCodes(secondsTime)).toEqual(['SCHEMA_INVALID']);
   });
+
+  it('requires solarCreativeIntent on EXTERIOR locations and forbids it on STUDIO', () => {
+    const missingExterior = makeMinimalValidPack();
+    const missingLocations = missingExterior.locations as JsonObject[];
+    missingLocations[0] = {
+      ...missingLocations[0],
+      kind: 'EXTERIOR',
+    };
+    expect(issueCodes(missingExterior)).toEqual(['SCHEMA_INVALID']);
+
+    const studioEnvelope = makeMinimalValidPack();
+    const studioLocations = studioEnvelope.locations as JsonObject[];
+    studioLocations[0] = {
+      ...studioLocations[0],
+      solarCreativeIntent: {
+        envelopeId: 'ENVELOPE-STUDIO',
+        preferredLocalTimeStart: '10:45',
+        preferredLocalTimeEnd: '16:30',
+        acceptableLocalTimeStart: '10:25',
+        acceptableLocalTimeEnd: '16:30',
+        preferredAzimuthDegrees: { min: 0, max: 360 },
+        acceptableAzimuthDegrees: { min: 0, max: 360 },
+        preferredElevationDegrees: { min: 0, max: 90 },
+        acceptableElevationDegrees: { min: 0, max: 90 },
+        shadowIntent: 'Controlled continuous lighting',
+        importance: 'CRITICAL',
+      },
+    };
+    expect(issueCodes(studioEnvelope)).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('rejects unknown creative-intent envelope fields and unknown envelope references', () => {
+    const extraField = makeMinimalValidPack();
+    const extraLocations = extraField.locations as JsonObject[];
+    extraLocations[0] = {
+      ...extraLocations[0],
+      kind: 'EXTERIOR',
+      solarCreativeIntent: {
+        envelopeId: 'ENVELOPE-GOTHIC-LOOK',
+        preferredLocalTimeStart: '07:20',
+        preferredLocalTimeEnd: '08:10',
+        acceptableLocalTimeStart: '07:10',
+        acceptableLocalTimeEnd: '08:30',
+        preferredAzimuthDegrees: { min: 70, max: 120 },
+        acceptableAzimuthDegrees: { min: 50, max: 150 },
+        preferredElevationDegrees: { min: -1, max: 18 },
+        acceptableElevationDegrees: { min: -2, max: 28 },
+        shadowIntent: 'Narrow-street shadow geometry',
+        importance: 'CRITICAL',
+        hiddenDefault: true,
+      },
+    };
+    expect(issueCodes(extraField)).toEqual(['SCHEMA_INVALID']);
+
+    const unknownEnvelope = makeMinimalValidPack();
+    const unknownLocations = unknownEnvelope.locations as JsonObject[];
+    unknownLocations[0] = {
+      ...unknownLocations[0],
+      kind: 'EXTERIOR',
+      solarCreativeIntent: {
+        envelopeId: 'ENVELOPE-GOTHIC-LOOK',
+        preferredLocalTimeStart: '07:20',
+        preferredLocalTimeEnd: '08:10',
+        acceptableLocalTimeStart: '07:10',
+        acceptableLocalTimeEnd: '08:30',
+        preferredAzimuthDegrees: { min: 70, max: 120 },
+        acceptableAzimuthDegrees: { min: 50, max: 150 },
+        preferredElevationDegrees: { min: -1, max: 18 },
+        acceptableElevationDegrees: { min: -2, max: 28 },
+        shadowIntent: 'Narrow-street shadow geometry',
+        importance: 'CRITICAL',
+      },
+    };
+    const unknownDeliverables = unknownEnvelope.deliverables as JsonObject[];
+    unknownDeliverables[0] = {
+      ...unknownDeliverables[0],
+      requiredLocationIds: ['LOC-01'],
+      creativeIntentEnvelopeId: 'ENVELOPE-DOES-NOT-EXIST',
+    };
+    expect(issueCodes(unknownEnvelope)).toEqual(['SCHEMA_INVALID']);
+  });
 });
