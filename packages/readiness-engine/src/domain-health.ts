@@ -80,17 +80,13 @@ function evaluateOneDomain(
     }
   }
   const domainFacts = factsFor(facts, domain);
-  if (domainFacts.length === 0 && gateId === undefined) {
+  if (domainFacts.length === 0) {
     states.push('UNRESOLVED');
     reasons.push(`${domain}_FACT_MISSING`);
   }
   for (const fact of domainFacts) {
     states.push(fact.state);
     reasons.push(...fact.reasons);
-  }
-  if (states.length === 0) {
-    states.push('UNRESOLVED');
-    reasons.push(`${domain}_UNRESOLVED`);
   }
   return Object.freeze({
     domain,

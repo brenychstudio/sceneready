@@ -385,6 +385,26 @@ describe('evaluateCriticalGates', () => {
     );
   });
 
+  it('treats omitted rights person or location context as UNRESOLVED, not FAILED', async () => {
+    const pack = await loadCanonicalPack();
+    const base = inputFromPack(pack, canonicalProofs());
+    const withoutPeople = { ...base };
+    delete (withoutPeople as { requiredPersonIds?: unknown }).requiredPersonIds;
+    const withoutLocations = { ...base };
+    delete (withoutLocations as { requiredLocationIds?: unknown }).requiredLocationIds;
+
+    const missingPeople = evaluateCriticalGates(withoutPeople);
+    const missingLocations = evaluateCriticalGates(withoutLocations);
+    expect(gateState(missingPeople, 'RIGHTS')).toBe('UNRESOLVED');
+    expect(missingPeople.gates.find((gate) => gate.id === 'RIGHTS')?.reasons).toContain(
+      'RIGHTS_SCOPE_CONTEXT_MISSING',
+    );
+    expect(gateState(missingLocations, 'RIGHTS')).toBe('UNRESOLVED');
+    expect(missingLocations.gates.find((gate) => gate.id === 'RIGHTS')?.reasons).toContain(
+      'RIGHTS_SCOPE_CONTEXT_MISSING',
+    );
+  });
+
   it('does not invent a location restriction from empty document locationIds', async () => {
     const pack = await loadCanonicalPack();
     const modelRelease = pack.rights.find((item) => item.id === 'DOCUMENT-MODEL-RELEASE');
@@ -647,6 +667,24 @@ describe('evaluateDomainHealth', () => {
     expect(result.domains.find((item) => item.domain === 'TIME_ENVIRONMENT')?.state).toBe(
       'UNRESOLVED',
     );
+  });
+
+  it('treats missing gated domain facts as UNRESOLVED even when the relevant gate passed', async () => {
+    const pack = await loadCanonicalPack();
+    const cases = ['PEOPLE', 'LOCATION', 'EQUIPMENT', 'DOCUMENTS_RIGHTS', 'LOGISTICS'] as const;
+    for (const missing of cases) {
+      const domainFacts: DomainFact[] = CANONICAL_DOMAINS.filter(
+        (domain) => domain !== missing,
+      ).map((domain) => ({
+        domain,
+        state: 'PASSED',
+        reasons: [`FACT_${domain}_PASSED`],
+      }));
+      const result = evaluateDomainHealth(inputFromPack(pack, canonicalProofs(), { domainFacts }));
+      const health = result.domains.find((item) => item.domain === missing);
+      expect(health?.state, missing).toBe('UNRESOLVED');
+      expect(health?.reasons.join(' '), missing).toContain(`${missing}_FACT_MISSING`);
+    }
   });
 
   it('keeps domain order stable when domain facts are reversed', async () => {

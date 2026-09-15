@@ -50,8 +50,8 @@ export interface ReadinessEvaluationInput {
   readonly productionDate: string;
   readonly intendedUsageScope: string;
   readonly intendedDeliverableId: string;
-  readonly requiredPersonIds?: readonly string[];
-  readonly requiredLocationIds?: readonly string[];
+  readonly requiredPersonIds: readonly string[];
+  readonly requiredLocationIds: readonly string[];
   readonly hardGates: readonly HardGateFact[];
   readonly documents: readonly RightsDocumentFact[];
   readonly capturePaths: readonly CapturePathFact[];
@@ -167,6 +167,14 @@ function evaluateSubjects(
 function evaluateRightsGate(input: ReadinessEvaluationInput, gate: HardGateFact): GateResult {
   const reasons: string[] = [];
   const states: GateState[] = [];
+  if (!Array.isArray(input.requiredPersonIds) || !Array.isArray(input.requiredLocationIds)) {
+    return Object.freeze({
+      id: gate.id,
+      state: 'UNRESOLVED',
+      reasons: Object.freeze(['RIGHTS_SCOPE_CONTEXT_MISSING']),
+      subjectIds: Object.freeze([...gate.subjectIds].sort(compareOrdinal)),
+    });
+  }
   for (const subjectId of [...gate.subjectIds].sort(compareOrdinal)) {
     const document = input.documents.find((item) => item.id === subjectId);
     if (document === undefined) {
@@ -179,8 +187,8 @@ function evaluateRightsGate(input: ReadinessEvaluationInput, gate: HardGateFact)
       intendedUsageScope: input.intendedUsageScope,
       intendedDeliverableId: input.intendedDeliverableId,
       productionDate: input.productionDate,
-      requiredPersonIds: input.requiredPersonIds ?? [],
-      requiredLocationIds: input.requiredLocationIds ?? [],
+      requiredPersonIds: input.requiredPersonIds,
+      requiredLocationIds: input.requiredLocationIds,
     });
     if (!coverage.covered) {
       states.push('FAILED');
