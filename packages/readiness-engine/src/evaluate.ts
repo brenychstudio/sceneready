@@ -9,6 +9,7 @@ import {
   type EvidenceConfidenceFact,
   type EvidenceReference,
 } from './confidence.js';
+import { evaluateDomainHealth } from './domain-health.js';
 import {
   evaluateCriticalGates,
   type GateResult,
@@ -92,8 +93,9 @@ export function evaluateProductionReadiness(
   input: ProductionEvaluationInput,
 ): ProductionReadinessAssessment {
   const gates = evaluateCriticalGates(input);
+  const health = evaluateDomainHealth(input);
   const scored = scoreReadiness({
-    domainFacts: input.domainFacts ?? [],
+    domains: health.domains,
     impacts: input.impacts,
     deliverables: input.deliverables,
   });

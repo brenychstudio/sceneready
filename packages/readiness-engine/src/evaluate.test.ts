@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  evaluateDomainHealth,
   evaluateProductionReadiness,
   HARD_GATE_IDS,
   PRODUCTION_DOMAINS,
@@ -37,12 +38,11 @@ function passedDomains(): DomainFact[] {
   }));
 }
 
-function r0Domains(): DomainFact[] {
-  return PRODUCTION_DOMAINS.map((domain) => ({
-    domain,
-    state: domain === 'DOCUMENTS_RIGHTS' ? 'FAILED' : 'PASSED',
-    reasons: domain === 'DOCUMENTS_RIGHTS' ? ['RIGHTS_USAGE_SCOPE_MISMATCH'] : [`${domain}_OK`],
-  }));
+function domainScore(
+  assessment: ReturnType<typeof evaluateProductionReadiness>,
+  domain: (typeof PRODUCTION_DOMAINS)[number],
+) {
+  return assessment.domainScores.filter((item) => item.domain === domain);
 }
 
 function modelRelease(usageScopes: readonly string[] = ['PAID_CAMPAIGN']): RightsDocumentFact {
@@ -69,7 +69,7 @@ function rightsProof(state: SubjectProof['state']): SubjectProof {
     aspect: 'VALIDITY',
     scope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
     state,
-    value: state === 'DENIED' ? 'INVALID' : 'VALID',
+    value: state === 'DENIED' ? 'ABSENT' : 'VALID',
   });
 }
 
@@ -284,8 +284,9 @@ function r0Input(): ProductionEvaluationInput {
       subjectType: id === 'RIGHTS' ? 'DOCUMENT' : 'LOCATION',
       subjectIds: id === 'RIGHTS' ? ['DOCUMENT-MODEL-RELEASE'] : [],
     })),
+    documents: [modelRelease(['PAID_CAMPAIGN'])],
     proofs: [rightsProof('DENIED')],
-    domainFacts: r0Domains(),
+    domainFacts: passedDomains(),
     confidenceFacts: [deniedRightsConfidence()],
     requiredEvidenceScopes: ['DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY'],
   });
@@ -322,9 +323,21 @@ describe('canonical protected assessments', () => {
     expect(assessment.confidenceScore).toBe(94);
     expect(assessment.status).toBe('BLOCKED');
     expect(assessment.certification).toBe('CERTIFIED');
+    const rights = assessment.gates.find((gate) => gate.id === 'RIGHTS');
+    const documents = domainScore(assessment, 'DOCUMENTS_RIGHTS');
+    const joinedReasons = [
+      ...(rights?.reasons ?? []),
+      ...assessment.domainScores.flatMap((item) => item.reasons ?? []),
+    ].join(' ');
+
     expect(assessment.failedGateIds).toEqual(['RIGHTS']);
     expect(assessment.unresolvedGateIds).toEqual([]);
     expect(assessment.failedGateIds.every((id) => id === 'RIGHTS')).toBe(true);
+    expect(documents).toHaveLength(1);
+    expect(documents[0]?.state).toBe('FAILED');
+    expect(joinedReasons).toMatch(/DOCUMENT-MODEL-RELEASE/);
+    expect(joinedReasons).toMatch(/DENIED/);
+    expect(joinedReasons).not.toMatch(/USAGE_SCOPE_MISMATCH/);
     expect(nowSpy).not.toHaveBeenCalled();
     expect(randomSpy).not.toHaveBeenCalled();
   });
@@ -359,8 +372,92 @@ describe('canonical protected assessments', () => {
   });
 });
 
+describe('canonical domain health scoring', () => {
+  it('scores the Task-5 DomainHealth states rather than raw DomainFacts', () => {
+    const input = r0Input();
+    const health = evaluateDomainHealth(input);
+    const assessment = evaluateProductionReadiness(input);
+
+    expect(assessment.domainScores).toHaveLength(6);
+    expect(assessment.domainScores.map((item) => item.domain)).toEqual([...PRODUCTION_DOMAINS]);
+    expect(assessment.domainScores.map((item) => item.state)).toEqual(
+      health.domains.map((item) => item.state),
+    );
+    expect(health.domains.find((item) => item.domain === 'DOCUMENTS_RIGHTS')?.state).toBe('FAILED');
+  });
+
+  it('lets a failed RIGHTS gate fail DOCUMENTS_RIGHTS exactly once despite a PASSED domain fact', () => {
+    const assessment = evaluateProductionReadiness(r0Input());
+    const documents = domainScore(assessment, 'DOCUMENTS_RIGHTS');
+
+    expect(assessment.domainScores).toHaveLength(6);
+    expect(documents).toHaveLength(1);
+    expect(documents[0]?.state).toBe('FAILED');
+    expect(assessment.readinessScore).toBe(78);
+  });
+
+  it('lets an unresolved relevant gate mark the corresponding domain UNRESOLVED', () => {
+    const assessment = evaluateProductionReadiness(
+      baseInput({
+        hardGates: HARD_GATE_IDS.map((id) => ({
+          id,
+          subjectType: 'LOCATION',
+          subjectIds: id === 'LOCATION_ACCESS' ? ['LOC-GOTHIC'] : [],
+        })),
+        proofs: [],
+        requiredLocationIds: ['LOC-GOTHIC'],
+      }),
+    );
+    const location = domainScore(assessment, 'LOCATION');
+
+    expect(assessment.unresolvedGateIds).toEqual(['LOCATION_ACCESS']);
+    expect(location).toHaveLength(1);
+    expect(location[0]?.state).toBe('UNRESOLVED');
+    expect(assessment.status).not.toBe('BLOCKED');
+  });
+
+  it('does not double-penalize duplicate equivalent DomainFacts', () => {
+    const once = evaluateProductionReadiness(r1Input());
+    const duplicated = evaluateProductionReadiness({
+      ...r1Input(),
+      domainFacts: [...passedDomains(), ...passedDomains()],
+    });
+    const reversed = evaluateProductionReadiness({
+      ...r1Input(),
+      domainFacts: [...passedDomains()].reverse(),
+    });
+
+    expect(duplicated.readinessScore).toBe(once.readinessScore);
+    expect(reversed.readinessScore).toBe(once.readinessScore);
+    expect(duplicated.domainScores).toHaveLength(6);
+  });
+
+  it('keeps a generic missing proof UNRESOLVED rather than FAILED', () => {
+    const assessment = evaluateProductionReadiness(
+      baseInput({
+        hardGates: HARD_GATE_IDS.map((id) => ({
+          id,
+          subjectType: id === 'RIGHTS' ? 'DOCUMENT' : 'LOCATION',
+          subjectIds: id === 'RIGHTS' ? ['DOCUMENT-MODEL-RELEASE'] : [],
+        })),
+        proofs: [rightsProof('MISSING')],
+        domainFacts: passedDomains(),
+      }),
+    );
+    const documents = domainScore(assessment, 'DOCUMENTS_RIGHTS');
+    const rights = assessment.gates.find((gate) => gate.id === 'RIGHTS');
+
+    expect(rights?.state).toBe('UNRESOLVED');
+    expect(assessment.failedGateIds).toEqual([]);
+    expect(documents).toHaveLength(1);
+    expect(documents[0]?.state).toBe('UNRESOLVED');
+    expect(assessment.status).toBe('AT_RISK');
+    expect(assessment.status).not.toBe('BLOCKED');
+  });
+});
+
 describe('operational status', () => {
-  it('treats a failed hard gate as BLOCKED even when readiness is 100', () => {
+  it('treats a failed hard gate as BLOCKED even when other domains are healthy', () => {
     const assessment = evaluateProductionReadiness(
       baseInput({
         hardGates: HARD_GATE_IDS.map((id) => ({
@@ -372,10 +469,13 @@ describe('operational status', () => {
         requiredLocationIds: ['LOC-GOTHIC'],
       }),
     );
+    const location = domainScore(assessment, 'LOCATION');
 
-    expect(assessment.readinessScore).toBe(100);
     expect(assessment.failedGateIds).toEqual(['LOCATION_ACCESS']);
+    expect(location).toHaveLength(1);
+    expect(location[0]?.state).toBe('FAILED');
     expect(assessment.status).toBe('BLOCKED');
+    expect(assessment.readinessScore).toBeLessThan(100);
   });
 
   it('treats CRITICAL risk with all gates passed as AT_RISK, never BLOCKED', () => {

@@ -1,5 +1,5 @@
-import { PRODUCTION_DOMAINS, type ProductionDomainId } from './domain-health.js';
-import type { DomainFact, GateState } from './gates.js';
+import { PRODUCTION_DOMAINS, type DomainHealth, type ProductionDomainId } from './domain-health.js';
+import type { GateState } from './gates.js';
 
 export const SCORING_VERSION = 'SR-SCORE-v1';
 
@@ -58,6 +58,7 @@ export interface DomainScore {
   readonly domain: ProductionDomainId;
   readonly state: GateState;
   readonly score: number;
+  readonly reasons: readonly string[];
 }
 
 export interface ReadinessScoreResult {
@@ -108,19 +109,6 @@ function maxSeverity(left: ScoreSeverity, right: ScoreSeverity): ScoreSeverity {
 
 function impactKey(impact: ReadinessImpactFact): string {
   return `${impact.incidentId}\u0000${impact.deliverableId}`;
-}
-
-function domainStateFromFacts(facts: readonly DomainFact[]): GateState {
-  if (facts.length === 0) {
-    return 'UNRESOLVED';
-  }
-  if (facts.some((fact) => fact.state === 'FAILED')) {
-    return 'FAILED';
-  }
-  if (facts.some((fact) => fact.state === 'UNRESOLVED')) {
-    return 'UNRESOLVED';
-  }
-  return 'PASSED';
 }
 
 function lookupImportance(
@@ -192,20 +180,21 @@ export function deduplicateImpacts(
 }
 
 export function scoreReadiness(input: {
-  readonly domainFacts: readonly DomainFact[];
+  readonly domains: readonly DomainHealth[];
   readonly impacts: readonly ReadinessImpactFact[];
   readonly deliverables: readonly DeliverableWeightFact[];
 }): ReadinessScoreResult {
+  const byDomain = new Map(input.domains.map((item) => [item.domain, item]));
   const domainScores = Object.freeze(
     PRODUCTION_DOMAINS.map((domain) => {
-      const state = domainStateFromFacts(
-        input.domainFacts.filter((fact) => fact.domain === domain),
-      );
+      const health = byDomain.get(domain);
+      const state = health?.state ?? 'UNRESOLVED';
       const penalty = SR_SCORE_V1.domainPenalty[state];
       return Object.freeze({
         domain,
         state,
         score: clampScore(100 - penalty),
+        reasons: Object.freeze([...(health?.reasons ?? [])]),
       });
     }),
   );
