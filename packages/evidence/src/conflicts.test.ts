@@ -9,6 +9,7 @@ import {
   resolveEvidenceSet,
   type EvidenceAuthorityClass,
   type EvidenceKind,
+  type EvidenceSourceType,
   type ScopedEvidence,
 } from './index.js';
 
@@ -32,6 +33,7 @@ interface MakeEvidenceInput {
   readonly receivedAt?: string;
   readonly trustState?: EvidenceTrustState;
   readonly kind?: EvidenceKind;
+  readonly sourceType?: EvidenceSourceType;
   readonly productionId?: string;
   readonly payloadExtra?: string;
 }
@@ -62,7 +64,7 @@ function makeEvidence(input: MakeEvidenceInput): ScopedEvidence {
     evidenceId: input.evidenceId,
     productionId: input.productionId ?? PRODUCTION_ID,
     kind: input.kind ?? kindForScope(input.scope),
-    sourceType: 'EXTERNAL_PROVIDER',
+    sourceType: input.sourceType ?? 'EXTERNAL_PROVIDER',
     authorityClass: input.authorityClass,
     trustState: input.trustState ?? 'LIVE',
     observedAt,
@@ -136,6 +138,32 @@ describe('evidence conflict resolution', () => {
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0]?.scope).toBe(LOCATION_SCOPE);
     expect(result.conflicts[0]?.productionId).toBe(PRODUCTION_ID);
+    expect(result.conflicts[0]?.status).toBe('UNRESOLVED');
+    expect(result.conflicts[0]?.evidenceIds).toEqual(['E-LEAD', 'E-PERMIT']);
+  });
+
+  it('does not let sourceType change contradictory location-access quarantine', () => {
+    const permit = makeEvidence({
+      evidenceId: 'E-PERMIT',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'DOCUMENT_AUTHORITY',
+      sourceType: 'SYSTEM_DERIVED',
+      value: 'VALID',
+    });
+    const lead = makeEvidence({
+      evidenceId: 'E-LEAD',
+      scope: LOCATION_SCOPE,
+      authorityClass: 'PRODUCTION_LEAD_ASSERTION',
+      sourceType: 'EXTERNAL_PROVIDER',
+      value: 'REVOKED',
+    });
+
+    const result = resolve([permit, lead]);
+
+    expect(permit.envelope.sourceType).toBe('SYSTEM_DERIVED');
+    expect(lead.envelope.sourceType).toBe('EXTERNAL_PROVIDER');
+    expect(result.active).toEqual([]);
+    expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0]?.status).toBe('UNRESOLVED');
     expect(result.conflicts[0]?.evidenceIds).toEqual(['E-LEAD', 'E-PERMIT']);
   });

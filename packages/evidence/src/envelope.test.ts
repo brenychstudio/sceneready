@@ -7,11 +7,13 @@ import {
   createEvidenceEnvelope,
   evaluateEvidenceTrust,
   EVIDENCE_AUTHORITY_CLASSES,
+  EVIDENCE_SOURCE_TYPES,
   type EvidenceAuthorityClass,
   type EvidenceEnvelope,
   type EvidenceEnvelopeInput,
   type EvidenceKind,
   type EvidenceMode,
+  type EvidenceSourceType,
 } from './index.js';
 
 afterEach(() => {
@@ -32,6 +34,7 @@ interface WeatherOverrides {
   readonly mode?: EvidenceMode;
   readonly adapterVersion?: string;
   readonly algorithmVersion?: string;
+  readonly sourceType?: EvidenceSourceType;
 }
 
 function makeWeatherInput<Payload>(
@@ -42,7 +45,7 @@ function makeWeatherInput<Payload>(
     evidenceId: overrides.evidenceId ?? 'E-WEATHER-001',
     productionId: 'BCN-DEMO-01',
     kind: overrides.kind ?? 'WEATHER',
-    sourceType: 'EXTERNAL_PROVIDER',
+    sourceType: overrides.sourceType ?? 'EXTERNAL_PROVIDER',
     authorityClass: overrides.authorityClass ?? 'EXTERNAL_AUTHORITATIVE',
     trustState: overrides.trustState ?? 'LIVE',
     observedAt: overrides.observedAt ?? '2026-09-17T04:00:00Z',
@@ -426,5 +429,25 @@ describe('evidence envelopes', () => {
 
     expect(changed.authorityClass).toBe('SYSTEM_DERIVED');
     expect(changed.contentFingerprint).not.toBe(baseline.contentFingerprint);
+  });
+
+  it('accepts SYSTEM_DERIVED source type without changing EXTERNAL_PROVIDER weather semantics', () => {
+    const external = createEvidenceEnvelope(makeWeatherInput(DEFAULT_WEATHER_PAYLOAD));
+    const derived = createEvidenceEnvelope(
+      makeWeatherInput(DEFAULT_WEATHER_PAYLOAD, { sourceType: 'SYSTEM_DERIVED' }),
+    );
+
+    expect(EVIDENCE_SOURCE_TYPES).toEqual(['EXTERNAL_PROVIDER', 'SYSTEM_DERIVED']);
+    expect(external.sourceType).toBe('EXTERNAL_PROVIDER');
+    expect(external.authorityClass).toBe('EXTERNAL_AUTHORITATIVE');
+    expect(derived.sourceType).toBe('SYSTEM_DERIVED');
+    expect(derived.authorityClass).toBe('EXTERNAL_AUTHORITATIVE');
+    expect(derived.contentFingerprint).not.toBe(external.contentFingerprint);
+    expect(() =>
+      createEvidenceEnvelope({
+        ...makeWeatherInput(DEFAULT_WEATHER_PAYLOAD),
+        sourceType: 'AMAZON_LOCATION' as EvidenceSourceType,
+      }),
+    ).toThrow(/canonical JSON rejected: unsupported sourceType/i);
   });
 });

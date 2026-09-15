@@ -148,6 +148,8 @@ describe('calculateSolarEvidence', () => {
     expect(result.evidence.productionId).toBe(PRODUCTION_ID);
     expect(result.evidence.evidenceId).toBe('EVD-SOLAR-GOTHIC');
     expect(result.evidence.algorithmVersion).toBe('SR-SOLAR-v1');
+    expect(result.evidence.sourceType).toBe('SYSTEM_DERIVED');
+    expect(result.evidence.sourceType).not.toBe('EXTERNAL_PROVIDER');
     expect(result.evidence.authorityClass).toBe('SYSTEM_DERIVED');
     expect(result.evidence.payload).toEqual(
       expect.objectContaining({
@@ -224,6 +226,32 @@ describe('calculateSolarEvidence', () => {
         instant: 'not-an-instant',
       }),
     ).toThrow(/canonical JSON rejected/i);
+  });
+
+  it('rejects impossible calendar instants that JS Date would normalize', () => {
+    const valid = {
+      productionId: PRODUCTION_ID,
+      evidenceId: 'EVD-SOLAR-GOTHIC',
+      coordinates: GOTHIC_COORDINATES,
+      instant: '2026-09-17T05:30:00Z',
+    };
+
+    expect(() =>
+      calculateSolarEvidence({
+        ...valid,
+        instant: '2026-02-30T00:00:00Z',
+      }),
+    ).toThrow(/canonical JSON rejected/i);
+    expect(() =>
+      calculateSolarEvidence({
+        ...valid,
+        instant: '2026-13-01T00:00:00Z',
+      }),
+    ).toThrow(/canonical JSON rejected/i);
+
+    const accepted = calculateSolarEvidence(valid);
+    expect(accepted.evidence.observedAt).toBe('2026-09-17T05:30:00Z');
+    expect(Number.isFinite(accepted.sunAzimuthDegrees)).toBe(true);
   });
 });
 
@@ -411,6 +439,7 @@ describe('solar-engine source authority', () => {
     const joined = sources.join('\n');
 
     expect(joined).not.toMatch(/Date\.now\s*\(/);
+    expect(joined).not.toMatch(/Date\.parse\s*\(/);
     expect(joined).not.toMatch(/Math\.random\s*\(/);
     expect(joined).not.toMatch(/randomUUID/);
     expect(joined).not.toMatch(/uuid/i);

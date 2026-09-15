@@ -157,6 +157,34 @@ function issueCodes(input: unknown): readonly string[] {
   return result.issues.map((issue) => issue.code);
 }
 
+function validExteriorIntent(overrides: JsonObject = {}): JsonObject {
+  return {
+    envelopeId: 'ENVELOPE-GOTHIC-LOOK',
+    preferredLocalTimeStart: '07:20',
+    preferredLocalTimeEnd: '08:10',
+    acceptableLocalTimeStart: '07:10',
+    acceptableLocalTimeEnd: '08:30',
+    preferredAzimuthDegrees: { min: 82, max: 91 },
+    acceptableAzimuthDegrees: { min: 70, max: 100 },
+    preferredElevationDegrees: { min: -2, max: 2 },
+    acceptableElevationDegrees: { min: -3, max: 12 },
+    shadowIntent: 'Narrow-street shadow geometry',
+    importance: 'CRITICAL',
+    ...overrides,
+  };
+}
+
+function packWithExteriorIntent(overrides: JsonObject = {}): JsonObject {
+  const pack = makeMinimalValidPack();
+  const locations = pack.locations as JsonObject[];
+  locations[0] = {
+    ...locations[0],
+    kind: 'EXTERIOR',
+    solarCreativeIntent: validExteriorIntent(overrides),
+  };
+  return pack;
+}
+
 describe('Production Pack validation', () => {
   it('accepts a canonical-shaped Task-5-ready minimal pack', () => {
     const result = validateProductionPack(makeMinimalValidPack());
@@ -675,5 +703,53 @@ describe('Production Pack validation', () => {
       creativeIntentEnvelopeId: 'ENVELOPE-DOES-NOT-EXIST',
     };
     expect(issueCodes(unknownEnvelope)).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('rejects physically impossible azimuth and elevation envelope ranges', () => {
+    expect(
+      issueCodes(
+        packWithExteriorIntent({
+          preferredElevationDegrees: { min: -91, max: 10 },
+        }),
+      ),
+    ).toEqual(['SCHEMA_INVALID']);
+    expect(
+      issueCodes(
+        packWithExteriorIntent({
+          preferredElevationDegrees: { min: 10, max: 91 },
+        }),
+      ),
+    ).toEqual(['SCHEMA_INVALID']);
+    expect(
+      issueCodes(
+        packWithExteriorIntent({
+          preferredElevationDegrees: { min: 20, max: 10 },
+        }),
+      ),
+    ).toEqual(['SCHEMA_INVALID']);
+    expect(
+      issueCodes(
+        packWithExteriorIntent({
+          preferredAzimuthDegrees: { min: -1, max: 90 },
+        }),
+      ),
+    ).toEqual(['SCHEMA_INVALID']);
+    expect(
+      issueCodes(
+        packWithExteriorIntent({
+          preferredAzimuthDegrees: { min: 0, max: 361 },
+        }),
+      ),
+    ).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('allows wrap-around azimuth ranges while keeping elevation ordered', () => {
+    const result = validateProductionPack(
+      packWithExteriorIntent({
+        preferredAzimuthDegrees: { min: 350, max: 10 },
+        acceptableAzimuthDegrees: { min: 340, max: 20 },
+      }),
+    );
+    expect(result.ok).toBe(true);
   });
 });

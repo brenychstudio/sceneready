@@ -1,5 +1,6 @@
-import { Body, Equator, Horizon, Observer } from 'astronomy-engine';
+import { Temporal } from '@js-temporal/polyfill';
 import type { EvidenceEnvelope } from '@sceneready/evidence';
+import { Body, Equator, Horizon, Observer } from 'astronomy-engine';
 
 import {
   createSolarEvidenceEnvelope,
@@ -32,7 +33,6 @@ export interface SolarEvidenceResult {
   readonly evidence: EvidenceEnvelope<SolarEvidencePayload>;
 }
 
-const INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const GEOMETRY_SCALE = 1_000_000;
 
 function assertFiniteNumber(value: number, path: string): number {
@@ -59,13 +59,14 @@ function assertLongitude(value: number): number {
 }
 
 function assertInstant(value: string): string {
-  if (typeof value !== 'string' || INSTANT_PATTERN.exec(value) === null) {
+  if (typeof value !== 'string') {
     throw new Error('canonical JSON rejected: invalid instant');
   }
-  if (!Number.isFinite(Date.parse(value))) {
+  try {
+    return Temporal.Instant.from(value).toString();
+  } catch {
     throw new Error('canonical JSON rejected: invalid instant');
   }
-  return value;
 }
 
 function assertNonEmptyId(value: string, path: string): string {
@@ -90,7 +91,7 @@ export function calculateSolarEvidence(input: CalculateSolarEvidenceInput): Sola
   const latitude = assertLatitude(input.coordinates.latitude);
   const longitude = assertLongitude(input.coordinates.longitude);
   const instant = assertInstant(input.instant);
-  const utcDate = new Date(Date.parse(instant));
+  const utcDate = new Date(Temporal.Instant.from(instant).epochMilliseconds);
   const observer = new Observer(latitude, longitude, 0);
   const equator = Equator(Body.Sun, utcDate, observer, true, true);
   const horizon = Horizon(utcDate, observer, equator.ra, equator.dec, 'normal');

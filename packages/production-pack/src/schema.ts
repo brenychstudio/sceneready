@@ -47,10 +47,25 @@ const PersonSchema = z.strictObject({
   critical: z.boolean(),
 });
 
-const DegreeRangeSchema = z.strictObject({
-  min: z.number().gte(-360).lte(360),
-  max: z.number().gte(-360).lte(360),
+const AzimuthRangeSchema = z.strictObject({
+  min: z.number().gte(0).lte(360),
+  max: z.number().gte(0).lte(360),
 });
+
+const ElevationRangeSchema = z
+  .strictObject({
+    min: z.number().gte(-90).lte(90),
+    max: z.number().gte(-90).lte(90),
+  })
+  .superRefine((range, ctx) => {
+    if (range.min > range.max) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['min'],
+        message: 'Elevation range min must be less than or equal to max.',
+      });
+    }
+  });
 
 const SolarCreativeIntentSchema = z.strictObject({
   envelopeId: PackEntityIdSchema,
@@ -58,10 +73,10 @@ const SolarCreativeIntentSchema = z.strictObject({
   preferredLocalTimeEnd: ProductionTimeSchema,
   acceptableLocalTimeStart: ProductionTimeSchema,
   acceptableLocalTimeEnd: ProductionTimeSchema,
-  preferredAzimuthDegrees: DegreeRangeSchema,
-  acceptableAzimuthDegrees: DegreeRangeSchema,
-  preferredElevationDegrees: DegreeRangeSchema,
-  acceptableElevationDegrees: DegreeRangeSchema,
+  preferredAzimuthDegrees: AzimuthRangeSchema,
+  acceptableAzimuthDegrees: AzimuthRangeSchema,
+  preferredElevationDegrees: ElevationRangeSchema,
+  acceptableElevationDegrees: ElevationRangeSchema,
   shadowIntent: z.string().min(1),
   importance: z.enum(['CRITICAL', 'HIGH', 'MEDIUM']),
 });

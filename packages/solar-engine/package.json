@@ -18,6 +18,7 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@sceneready/evidence": "0.0.0",
     "astronomy-engine": "2.1.19"
   }

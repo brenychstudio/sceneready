@@ -28,7 +28,7 @@ export function createSolarEvidenceEnvelope(input: {
     evidenceId: input.evidenceId,
     productionId: input.productionId,
     kind: 'SOLAR',
-    sourceType: 'EXTERNAL_PROVIDER',
+    sourceType: 'SYSTEM_DERIVED',
     authorityClass: 'SYSTEM_DERIVED',
     trustState: 'LIVE',
     observedAt: input.instant,

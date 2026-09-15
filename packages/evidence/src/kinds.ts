@@ -10,7 +10,7 @@ export const EVIDENCE_KINDS = [
 
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
-export const EVIDENCE_SOURCE_TYPES = ['EXTERNAL_PROVIDER'] as const;
+export const EVIDENCE_SOURCE_TYPES = ['EXTERNAL_PROVIDER', 'SYSTEM_DERIVED'] as const;
 
 export type EvidenceSourceType = (typeof EVIDENCE_SOURCE_TYPES)[number];
 
