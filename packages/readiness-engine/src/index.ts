@@ -19,6 +19,7 @@ export {
   HARD_GATE_IDS,
   PROOF_STATES,
   type CriticalGatesResult,
+  type DomainFact,
   type GateResult,
   type GateState,
   type HardGateFact,

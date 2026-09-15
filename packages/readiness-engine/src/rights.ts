@@ -14,6 +14,8 @@ export interface RightsEvaluationInput {
   readonly intendedUsageScope: string;
   readonly intendedDeliverableId: string;
   readonly productionDate: string;
+  readonly requiredPersonIds?: readonly string[];
+  readonly requiredLocationIds?: readonly string[];
 }
 
 export function dateWithinBounds(
@@ -49,6 +51,20 @@ export function evaluateRightsCoverage(input: RightsEvaluationInput): {
     )
   ) {
     reasons.push('VALIDITY_OUTSIDE_BOUNDS');
+  }
+  const requiredPersonIds = input.requiredPersonIds ?? [];
+  if (
+    input.document.personIds.length > 0 &&
+    requiredPersonIds.some((personId) => !input.document.personIds.includes(personId))
+  ) {
+    reasons.push('PERSON_SCOPE_MISMATCH');
+  }
+  const requiredLocationIds = input.requiredLocationIds ?? [];
+  if (
+    input.document.locationIds.length > 0 &&
+    requiredLocationIds.some((locationId) => !input.document.locationIds.includes(locationId))
+  ) {
+    reasons.push('LOCATION_SCOPE_MISMATCH');
   }
   return {
     covered: reasons.length === 0,

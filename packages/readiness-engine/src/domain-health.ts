@@ -1,7 +1,9 @@
 import {
   evaluateCriticalGates,
+  type DomainFact,
   type GateResult,
   type GateState,
+  type HardGateId,
   type ReadinessEvaluationInput,
 } from './gates.js';
 
@@ -26,43 +28,83 @@ export interface DomainHealthResult {
   readonly domains: readonly DomainHealth[];
 }
 
+const DOMAIN_GATES: Readonly<Partial<Record<ProductionDomainId, HardGateId>>> = {
+  PEOPLE: 'CRITICAL_TALENT',
+  LOCATION: 'LOCATION_ACCESS',
+  EQUIPMENT: 'CRITICAL_CAPTURE_KIT',
+  DOCUMENTS_RIGHTS: 'RIGHTS',
+  LOGISTICS: 'STUDIO_AVAILABILITY',
+};
+
+function compareOrdinal(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 function gateById(gates: readonly GateResult[], id: string): GateResult | undefined {
   return gates.find((gate) => gate.id === id);
 }
 
-function domainFromGate(
+function combineHealth(states: readonly GateState[]): GateState {
+  if (states.some((state) => state === 'FAILED')) {
+    return 'FAILED';
+  }
+  if (states.some((state) => state === 'UNRESOLVED')) {
+    return 'UNRESOLVED';
+  }
+  return 'PASSED';
+}
+
+function factsFor(facts: readonly DomainFact[], domain: ProductionDomainId): readonly DomainFact[] {
+  return facts.filter((fact) => fact.domain === domain);
+}
+
+function evaluateOneDomain(
   domain: ProductionDomainId,
-  gate: GateResult | undefined,
-  fallbackReason: string,
+  gates: readonly GateResult[],
+  facts: readonly DomainFact[],
 ): DomainHealth {
-  if (gate === undefined) {
-    return Object.freeze({
-      domain,
-      state: 'UNRESOLVED',
-      reasons: Object.freeze([fallbackReason]),
-    });
+  const reasons: string[] = [];
+  const states: GateState[] = [];
+  const gateId = DOMAIN_GATES[domain];
+  if (gateId !== undefined) {
+    const gate = gateById(gates, gateId);
+    if (gate !== undefined) {
+      states.push(gate.state);
+      reasons.push(...gate.reasons);
+    }
+  }
+  const domainFacts = factsFor(facts, domain);
+  if (domainFacts.length === 0 && gateId === undefined) {
+    states.push('UNRESOLVED');
+    reasons.push(`${domain}_FACT_MISSING`);
+  }
+  for (const fact of domainFacts) {
+    states.push(fact.state);
+    reasons.push(...fact.reasons);
+  }
+  if (states.length === 0) {
+    states.push('UNRESOLVED');
+    reasons.push(`${domain}_UNRESOLVED`);
   }
   return Object.freeze({
     domain,
-    state: gate.state,
-    reasons: Object.freeze([...gate.reasons]),
+    state: combineHealth(states),
+    reasons: Object.freeze([...reasons].sort(compareOrdinal)),
   });
 }
 
 export function evaluateDomainHealth(input: ReadinessEvaluationInput): DomainHealthResult {
   const gates = evaluateCriticalGates(input).gates;
+  const facts = input.domainFacts ?? [];
   return Object.freeze({
-    domains: Object.freeze([
-      domainFromGate('PEOPLE', gateById(gates, 'CRITICAL_TALENT'), 'PEOPLE_UNRESOLVED'),
-      domainFromGate('LOCATION', gateById(gates, 'LOCATION_ACCESS'), 'LOCATION_UNRESOLVED'),
-      Object.freeze({
-        domain: 'TIME_ENVIRONMENT',
-        state: 'UNRESOLVED',
-        reasons: Object.freeze(['TIME_ENVIRONMENT_NO_HARD_GATE']),
-      }),
-      domainFromGate('EQUIPMENT', gateById(gates, 'CRITICAL_CAPTURE_KIT'), 'EQUIPMENT_UNRESOLVED'),
-      domainFromGate('DOCUMENTS_RIGHTS', gateById(gates, 'RIGHTS'), 'DOCUMENTS_RIGHTS_UNRESOLVED'),
-      domainFromGate('LOGISTICS', gateById(gates, 'STUDIO_AVAILABILITY'), 'LOGISTICS_UNRESOLVED'),
-    ]),
+    domains: Object.freeze(
+      PRODUCTION_DOMAINS.map((domain) => evaluateOneDomain(domain, gates, facts)),
+    ),
   });
 }

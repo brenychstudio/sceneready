@@ -7,8 +7,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { validateProductionPack, type ProductionPack } from '@sceneready/production-pack';
 
 import {
+  evaluateApprovedCapturePath,
   evaluateCriticalGates,
   evaluateDomainHealth,
+  HARD_GATE_IDS,
+  type DomainFact,
   type ReadinessEvaluationInput,
   type SubjectProof,
 } from './index.js';
@@ -204,6 +207,9 @@ function inputFromPack(
       operationalState: asset.operationalState,
     })),
     proofs,
+    requiredPersonIds: ['PERSON-MODEL'],
+    requiredLocationIds: [],
+    domainFacts: [],
     ...overrides,
   };
 }
@@ -238,6 +244,8 @@ describe('evaluateCriticalGates', () => {
 
     expect(result.gates.map((gate) => gate.id)).toEqual([...CANONICAL_GATES]);
     expect(result.gates).toHaveLength(5);
+    expect(result.failedGateIds).toEqual([]);
+    expect(result.unresolvedGateIds).toEqual([]);
     expect(result.gates.some((gate) => String(gate.id).includes('WEATHER'))).toBe(false);
     expect(nowSpy).not.toHaveBeenCalled();
     expect(randomSpy).not.toHaveBeenCalled();
@@ -251,6 +259,13 @@ describe('evaluateCriticalGates', () => {
     expect(gateState(result, 'CRITICAL_TALENT')).toBe('UNRESOLVED');
     expect(gateState(result, 'RIGHTS')).toBe('UNRESOLVED');
     expect(gateState(result, 'STUDIO_AVAILABILITY')).toBe('UNRESOLVED');
+    expect(result.failedGateIds).toEqual(
+      result.gates.filter((gate) => gate.state === 'FAILED').map((gate) => gate.id),
+    );
+    expect(result.unresolvedGateIds).toEqual(
+      result.gates.filter((gate) => gate.state === 'UNRESOLVED').map((gate) => gate.id),
+    );
+    expect(result.unresolvedGateIds.every((id) => HARD_GATE_IDS.includes(id))).toBe(true);
     expect(
       result.gates.every((gate) => gate.state !== 'FAILED' || gate.id === 'CRITICAL_CAPTURE_KIT'),
     ).toBe(true);
@@ -332,6 +347,54 @@ describe('evaluateCriticalGates', () => {
     expect(gateState(result, 'RIGHTS')).toBe('PASSED');
   });
 
+  it('fails RIGHTS when a required person is outside the document person scope', async () => {
+    const pack = await loadCanonicalPack();
+    const result = evaluateCriticalGates(
+      inputFromPack(pack, canonicalProofs(), { requiredPersonIds: ['PERSON-STYLIST'] }),
+    );
+    expect(gateState(result, 'RIGHTS')).toBe('FAILED');
+    expect(result.gates.find((gate) => gate.id === 'RIGHTS')?.reasons.join(' ')).toMatch(
+      /PERSON_SCOPE_MISMATCH/,
+    );
+  });
+
+  it('passes RIGHTS when the required person is in the document person scope', async () => {
+    const pack = await loadCanonicalPack();
+    const result = evaluateCriticalGates(
+      inputFromPack(pack, canonicalProofs(), { requiredPersonIds: ['PERSON-MODEL'] }),
+    );
+    expect(gateState(result, 'RIGHTS')).toBe('PASSED');
+  });
+
+  it('fails RIGHTS when a location-scoped document does not cover the required location', async () => {
+    const pack = clonePack(await loadCanonicalPack());
+    const mutated: ProductionPack = {
+      ...pack,
+      rights: pack.rights.map((document) =>
+        document.id === 'DOCUMENT-MODEL-RELEASE'
+          ? { ...document, locationIds: ['LOC-GOTHIC'] }
+          : document,
+      ),
+    };
+    const result = evaluateCriticalGates(
+      inputFromPack(mutated, canonicalProofs(), { requiredLocationIds: ['LOC-EIXAMPLE'] }),
+    );
+    expect(gateState(result, 'RIGHTS')).toBe('FAILED');
+    expect(result.gates.find((gate) => gate.id === 'RIGHTS')?.reasons.join(' ')).toMatch(
+      /LOCATION_SCOPE_MISMATCH/,
+    );
+  });
+
+  it('does not invent a location restriction from empty document locationIds', async () => {
+    const pack = await loadCanonicalPack();
+    const modelRelease = pack.rights.find((item) => item.id === 'DOCUMENT-MODEL-RELEASE');
+    expect(modelRelease?.locationIds).toEqual([]);
+    const result = evaluateCriticalGates(
+      inputFromPack(pack, canonicalProofs(), { requiredLocationIds: ['LOC-GOTHIC'] }),
+    );
+    expect(gateState(result, 'RIGHTS')).toBe('PASSED');
+  });
+
   it('does not invent expiration failure from null rights date bounds', async () => {
     const pack = await loadCanonicalPack();
     const modelRelease = pack.rights.find((item) => item.id === 'DOCUMENT-MODEL-RELEASE');
@@ -407,6 +470,24 @@ describe('evaluateCriticalGates', () => {
     expect(gateState(evaluateCriticalGates(inputFromPack(pack, proofs)), 'LOCATION_ACCESS')).toBe(
       'FAILED',
     );
+  });
+
+  it('lists failed and unresolved gate IDs in canonical order', async () => {
+    const pack = await loadCanonicalPack();
+    const proofs = [
+      deniedAccess('LOC-GOTHIC'),
+      confirmedAccess('LOC-EIXAMPLE'),
+      proof({
+        subjectId: 'PERSON-MODEL',
+        subjectType: 'PERSON',
+        aspect: 'AVAILABILITY',
+        scope: 'PERSON:PERSON-MODEL:AVAILABILITY',
+        state: 'MISSING',
+      }),
+    ];
+    const result = evaluateCriticalGates(inputFromPack(pack, proofs));
+    expect(result.failedGateIds).toEqual(['LOCATION_ACCESS']);
+    expect(result.unresolvedGateIds).toEqual(['CRITICAL_TALENT', 'RIGHTS', 'STUDIO_AVAILABILITY']);
   });
 
   it('passes confirmed critical talent and fails explicit unavailability', async () => {
@@ -490,6 +571,172 @@ describe('evaluateDomainHealth', () => {
 
     expect(JSON.stringify(reversedGates)).toBe(JSON.stringify(forwardGates));
     expect(JSON.stringify(reversedDomains)).toBe(JSON.stringify(forwardDomains));
+  });
+
+  it('passes all six domains when baseline facts and relevant gates pass', async () => {
+    const pack = await loadCanonicalPack();
+    const domainFacts: DomainFact[] = [...CANONICAL_DOMAINS].reverse().map((domain) => ({
+      domain,
+      state: 'PASSED',
+      reasons: [`FACT_${domain}_PASSED`],
+    }));
+    const result = evaluateDomainHealth(inputFromPack(pack, canonicalProofs(), { domainFacts }));
+    expect(result.domains.map((item) => item.domain)).toEqual([...CANONICAL_DOMAINS]);
+    expect(result.domains.every((item) => item.state === 'PASSED')).toBe(true);
+  });
+
+  it('lets TIME_ENVIRONMENT pass or stay unresolved without affecting unrelated domains', async () => {
+    const pack = await loadCanonicalPack();
+    const passingFacts: DomainFact[] = CANONICAL_DOMAINS.map((domain) => ({
+      domain,
+      state: 'PASSED',
+      reasons: [`FACT_${domain}_PASSED`],
+    }));
+    const unresolvedTime: DomainFact[] = passingFacts.map((fact) =>
+      fact.domain === 'TIME_ENVIRONMENT'
+        ? { ...fact, state: 'UNRESOLVED', reasons: ['FACT_TIME_ENVIRONMENT_UNRESOLVED'] }
+        : fact,
+    );
+    const passed = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: passingFacts }),
+    );
+    const unresolved = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: unresolvedTime }),
+    );
+    expect(passed.domains.find((item) => item.domain === 'TIME_ENVIRONMENT')?.state).toBe('PASSED');
+    expect(unresolved.domains.find((item) => item.domain === 'TIME_ENVIRONMENT')?.state).toBe(
+      'UNRESOLVED',
+    );
+    expect(unresolved.domains.find((item) => item.domain === 'PEOPLE')?.state).toBe('PASSED');
+    expect(unresolved.domains.find((item) => item.domain === 'EQUIPMENT')?.state).toBe('PASSED');
+  });
+
+  it('evaluates LOGISTICS facts independently of the studio gate and lets a failed gate dominate', async () => {
+    const pack = await loadCanonicalPack();
+    const logisticsFailed: DomainFact[] = CANONICAL_DOMAINS.map((domain) => ({
+      domain,
+      state: domain === 'LOGISTICS' ? 'FAILED' : 'PASSED',
+      reasons: [`FACT_${domain}`],
+    }));
+    const peoplePassed: DomainFact[] = CANONICAL_DOMAINS.map((domain) => ({
+      domain,
+      state: 'PASSED',
+      reasons: [`FACT_${domain}`],
+    }));
+    const studioPassing = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: logisticsFailed }),
+    );
+    const talentDenied = canonicalProofs().map((item) =>
+      item.subjectId === 'PERSON-MODEL'
+        ? { ...item, state: 'DENIED' as const, value: 'UNAVAILABLE' }
+        : item,
+    );
+    const talentFailed = evaluateDomainHealth(
+      inputFromPack(pack, talentDenied, { domainFacts: peoplePassed }),
+    );
+    expect(studioPassing.domains.find((item) => item.domain === 'LOGISTICS')?.state).toBe('FAILED');
+    expect(studioPassing.domains.find((item) => item.domain === 'LOCATION')?.state).toBe('PASSED');
+    expect(talentFailed.domains.find((item) => item.domain === 'PEOPLE')?.state).toBe('FAILED');
+  });
+
+  it('treats a missing TIME_ENVIRONMENT domain fact as UNRESOLVED', async () => {
+    const pack = await loadCanonicalPack();
+    const result = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: [] }),
+    );
+    expect(result.domains.find((item) => item.domain === 'TIME_ENVIRONMENT')?.state).toBe(
+      'UNRESOLVED',
+    );
+  });
+
+  it('keeps domain order stable when domain facts are reversed', async () => {
+    const pack = await loadCanonicalPack();
+    const facts: DomainFact[] = CANONICAL_DOMAINS.map((domain) => ({
+      domain,
+      state: 'PASSED',
+      reasons: [`FACT_${domain}_PASSED`],
+    }));
+    const forward = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: facts }),
+    );
+    const reversed = evaluateDomainHealth(
+      inputFromPack(pack, canonicalProofs(), { domainFacts: [...facts].reverse() }),
+    );
+    expect(reversed.domains.map((item) => item.domain)).toEqual([...CANONICAL_DOMAINS]);
+    expect(JSON.stringify(reversed)).toBe(JSON.stringify(forward));
+  });
+});
+
+describe('evaluateApprovedCapturePath', () => {
+  const motionOnly = [
+    { id: 'EQ-MOTION-GIMBAL', category: 'MOTION' as const, operationalState: 'READY' as const },
+    { id: 'EQ-TETHER', category: 'TETHERING' as const, operationalState: 'READY' as const },
+  ];
+  const failedPrimaryStills = [
+    { id: 'EQ-BODY-PRIMARY', category: 'BODY' as const, operationalState: 'FAILED' as const },
+    { id: 'EQ-LENS-PRIMARY', category: 'LENS' as const, operationalState: 'READY' as const },
+    { id: 'EQ-MEDIA-PRIMARY', category: 'MEDIA' as const, operationalState: 'READY' as const },
+    { id: 'EQ-POWER-PRIMARY', category: 'POWER' as const, operationalState: 'READY' as const },
+  ];
+  const unknownBackupBody = [
+    { id: 'EQ-BODY-BACKUP', category: 'BODY' as const, operationalState: 'UNKNOWN' as const },
+    { id: 'EQ-LENS-BACKUP', category: 'LENS' as const, operationalState: 'READY' as const },
+    { id: 'EQ-MEDIA-BACKUP', category: 'MEDIA' as const, operationalState: 'READY' as const },
+    { id: 'EQ-POWER-BACKUP', category: 'POWER' as const, operationalState: 'READY' as const },
+  ];
+
+  it('fails when both approved capture lists are structurally incomplete', () => {
+    expect(
+      evaluateApprovedCapturePath(
+        {
+          id: 'PATH-INCOMPLETE',
+          primaryEquipmentIds: ['EQ-MOTION-GIMBAL'],
+          backupEquipmentIds: ['EQ-TETHER'],
+        },
+        motionOnly,
+      ),
+    ).toBe('FAILED');
+  });
+
+  it('fails when one list is failed and the other is structurally incomplete', () => {
+    expect(
+      evaluateApprovedCapturePath(
+        {
+          id: 'PATH-FAILED-INCOMPLETE',
+          primaryEquipmentIds: [
+            'EQ-BODY-PRIMARY',
+            'EQ-LENS-PRIMARY',
+            'EQ-MEDIA-PRIMARY',
+            'EQ-POWER-PRIMARY',
+          ],
+          backupEquipmentIds: ['EQ-TETHER'],
+        },
+        [...failedPrimaryStills, ...motionOnly],
+      ),
+    ).toBe('FAILED');
+  });
+
+  it('stays unresolved when a failed list is paired with unresolved proof', () => {
+    expect(
+      evaluateApprovedCapturePath(
+        {
+          id: 'PATH-FAILED-UNRESOLVED',
+          primaryEquipmentIds: [
+            'EQ-BODY-PRIMARY',
+            'EQ-LENS-PRIMARY',
+            'EQ-MEDIA-PRIMARY',
+            'EQ-POWER-PRIMARY',
+          ],
+          backupEquipmentIds: [
+            'EQ-BODY-BACKUP',
+            'EQ-LENS-BACKUP',
+            'EQ-MEDIA-BACKUP',
+            'EQ-POWER-BACKUP',
+          ],
+        },
+        [...failedPrimaryStills, ...unknownBackupBody],
+      ),
+    ).toBe('UNRESOLVED');
   });
 });
 

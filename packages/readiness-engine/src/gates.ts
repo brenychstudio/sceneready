@@ -38,16 +38,26 @@ export interface HardGateFact {
   readonly subjectIds: readonly string[];
 }
 
+export interface DomainFact {
+  readonly domain:
+    'PEOPLE' | 'LOCATION' | 'TIME_ENVIRONMENT' | 'EQUIPMENT' | 'DOCUMENTS_RIGHTS' | 'LOGISTICS';
+  readonly state: GateState;
+  readonly reasons: readonly string[];
+}
+
 export interface ReadinessEvaluationInput {
   readonly productionId: string;
   readonly productionDate: string;
   readonly intendedUsageScope: string;
   readonly intendedDeliverableId: string;
+  readonly requiredPersonIds?: readonly string[];
+  readonly requiredLocationIds?: readonly string[];
   readonly hardGates: readonly HardGateFact[];
   readonly documents: readonly RightsDocumentFact[];
   readonly capturePaths: readonly CapturePathFact[];
   readonly equipment: readonly EquipmentFact[];
   readonly proofs: readonly SubjectProof[];
+  readonly domainFacts?: readonly DomainFact[];
 }
 
 export interface GateResult {
@@ -59,6 +69,8 @@ export interface GateResult {
 
 export interface CriticalGatesResult {
   readonly gates: readonly GateResult[];
+  readonly failedGateIds: readonly HardGateId[];
+  readonly unresolvedGateIds: readonly HardGateId[];
 }
 
 function compareOrdinal(left: string, right: string): number {
@@ -167,6 +179,8 @@ function evaluateRightsGate(input: ReadinessEvaluationInput, gate: HardGateFact)
       intendedUsageScope: input.intendedUsageScope,
       intendedDeliverableId: input.intendedDeliverableId,
       productionDate: input.productionDate,
+      requiredPersonIds: input.requiredPersonIds ?? [],
+      requiredLocationIds: input.requiredLocationIds ?? [],
     });
     if (!coverage.covered) {
       states.push('FAILED');
@@ -251,7 +265,14 @@ function evaluateOne(input: ReadinessEvaluationInput, id: HardGateId): GateResul
 }
 
 export function evaluateCriticalGates(input: ReadinessEvaluationInput): CriticalGatesResult {
+  const gates = Object.freeze(HARD_GATE_IDS.map((id) => evaluateOne(input, id)));
   return Object.freeze({
-    gates: Object.freeze(HARD_GATE_IDS.map((id) => evaluateOne(input, id))),
+    gates,
+    failedGateIds: Object.freeze(
+      gates.filter((gate) => gate.state === 'FAILED').map((gate) => gate.id),
+    ),
+    unresolvedGateIds: Object.freeze(
+      gates.filter((gate) => gate.state === 'UNRESOLVED').map((gate) => gate.id),
+    ),
   });
 }

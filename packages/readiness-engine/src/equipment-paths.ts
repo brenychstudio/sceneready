@@ -66,8 +66,5 @@ export function evaluateApprovedCapturePath(
   if (primary === 'UNRESOLVED' || backup === 'UNRESOLVED') {
     return 'UNRESOLVED';
   }
-  if (primary === 'FAILED' || backup === 'FAILED') {
-    return 'FAILED';
-  }
-  return 'UNRESOLVED';
+  return 'FAILED';
 }
