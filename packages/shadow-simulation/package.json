@@ -14,6 +14,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@sceneready/intervention-engine": "0.0.0",
+    "@sceneready/production-graph": "0.0.0",
+    "@sceneready/production-pack": "0.0.0",
+    "@sceneready/readiness-engine": "0.0.0"
   }
 }
