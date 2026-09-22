@@ -82,8 +82,9 @@ Deliverable importance weights from `SR_SCORE_V1.importanceWeight`:
 | HIGH       | 2      |
 | CRITICAL   | 3      |
 
-Healthy domains with zero causal penalties leave headroom below 100. The
-model is not capped at a scenario label.
+`SR-SCORE-v1` baseline is `100`. When all six domains are `PASSED`, the domain penalty is zero. Zero causal impact penalties means the impact penalty is zero. Therefore `readinessScore = 100`.
+
+R1 readiness `86` is a canonical scenario output. It is not a model cap.
 
 ## Confidence is independent from readiness
 
@@ -124,3 +125,5 @@ Computed by the same `evaluateProductionReadiness()` function:
 
 The same deterministic scoring function is intended for later live and
 shadow evaluation. Shadow Simulation itself is not implemented in SR-02.
+Task-8 outcome metrics consume explicit deterministic comparison facts.
+That comparison is not Shadow Simulation and not an implemented recovery proposal engine.

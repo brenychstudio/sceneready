@@ -5,6 +5,7 @@ export {
   PRODUCTION_PHASES,
   canInterveneOnActivity,
   canTransitionProductionPhase,
+  type ActivityInterventionDecision,
   type ActivityInterventionKind,
   type ActivityLifecycleState,
   type LifecycleReasonCode,

@@ -22,14 +22,18 @@ export const LIFECYCLE_REASON_CODES = [
   'PHASE_SEQUENCE_MONOTONIC',
   'COMPLETE_IS_TERMINAL',
   'ACTIVITY_IMMUTABLE_AFTER_COMPLETION',
+  'PRODUCTION_COMPLETE_IMMUTABLE',
 ] as const;
 
 export type LifecycleReasonCode = (typeof LIFECYCLE_REASON_CODES)[number];
 
 export type PhaseTransitionDecision =
-  { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
+  { readonly allowed: true } | { readonly allowed: false; readonly reason: LifecycleReasonCode };
 
 export type ActivityInterventionKind = 'SHIFT_ACTIVITY';
+
+export type ActivityInterventionDecision =
+  { readonly allowed: true } | { readonly allowed: false; readonly reason: LifecycleReasonCode };
 
 export function canTransitionProductionPhase(
   from: ProductionPhase,
@@ -50,9 +54,12 @@ export function canInterveneOnActivity(input: {
   readonly productionPhase: ProductionPhase;
   readonly activityState: ActivityLifecycleState;
   readonly interventionKind: ActivityInterventionKind;
-}): { readonly allowed: true } | { readonly allowed: false; readonly reason: string } {
+}): ActivityInterventionDecision {
   if (input.activityState === 'COMPLETED') {
     return { allowed: false, reason: 'ACTIVITY_IMMUTABLE_AFTER_COMPLETION' };
+  }
+  if (input.productionPhase === 'COMPLETE') {
+    return { allowed: false, reason: 'PRODUCTION_COMPLETE_IMMUTABLE' };
   }
   return { allowed: true };
 }

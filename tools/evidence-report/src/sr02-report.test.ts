@@ -37,7 +37,12 @@ describe('SR-02 evidence report', () => {
     expect(report.metrics.protectedCriticalDeliverables).toBe(2);
     expect(report.metrics.predictedStudioDelayReductionMinutes).toBe(15);
     expect(report.metrics.monetaryImpact).toBeNull();
-    expect(report.lifecycle.reasonCodes).toContain('ACTIVITY_IMMUTABLE_AFTER_COMPLETION');
+    expect(report.lifecycle.reasonCodes).toEqual([
+      'PHASE_SEQUENCE_MONOTONIC',
+      'COMPLETE_IS_TERMINAL',
+      'ACTIVITY_IMMUTABLE_AFTER_COMPLETION',
+      'PRODUCTION_COMPLETE_IMMUTABLE',
+    ]);
     expect(nowSpy).not.toHaveBeenCalled();
   });
 
@@ -81,10 +86,15 @@ describe('SR-02 evidence report', () => {
     expect(first.evidence.map((item) => item.evidenceId)).toEqual(
       [...first.evidence.map((item) => item.evidenceId)].sort(),
     );
-    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
-    expect(JSON.stringify(first)).not.toMatch(/Date\.now/);
-    expect(JSON.stringify(first)).not.toMatch(/generationTimestamp/);
-    expect(JSON.stringify(first)).not.toMatch(/hostname/i);
+    const serialized = JSON.stringify(first);
+    expect(JSON.stringify(second)).toBe(serialized);
+    expect(serialized).not.toMatch(/Date\.now/);
+    expect(serialized).not.toMatch(/generationTimestamp/);
+    expect(serialized).not.toMatch(/hostname/i);
+    expect(serialized).not.toMatch(/[A-Za-z]:\\/);
+    expect(serialized).not.toMatch(/\/Users\//);
+    expect(serialized).not.toMatch(/sceneready/i);
+    expect(serialized).not.toMatch(/"timestamp"/);
   });
 
   it('prints JSON only on stdout when invoked as a CLI', () => {
@@ -114,5 +124,47 @@ describe('SR-02 report source authority', () => {
     expect(source).not.toMatch(/Date\.now\s*\(/);
     expect(source).not.toMatch(/Math\.random\s*\(/);
     expect(source).not.toMatch(/randomUUID/);
+    expect(source).not.toMatch(/os\.hostname/);
+    expect(source).not.toMatch(/new Date\s*\(/);
+  });
+
+  it('keeps canonical scenario construction out of report assembly', async () => {
+    const scenarioSource = join(repositoryRoot, 'tools/evidence-report/src/sr02-scenarios.ts');
+    const report = await readFile(reportSource, 'utf8');
+    const scenarios = await readFile(scenarioSource, 'utf8');
+    const scenarioFunctions = [
+      'function fixtureDirectory',
+      'function loadCanonicalPack',
+      'function baseInput',
+      'function r0Input',
+      'function r1Input',
+      'function r2Input',
+      'function r2Risks',
+      'function r2Impacts',
+      'function overlayCompoundEvidence',
+      'function recoveredComparison',
+    ];
+
+    for (const signature of scenarioFunctions) {
+      expect(scenarios).toContain(signature);
+      expect(report).not.toContain(signature);
+    }
+    expect(scenarios).toContain('windowCompressionMinutes');
+    expect(scenarios).toContain('loadInDelayMinutes');
+    expect(report).not.toContain('windowCompressionMinutes');
+    expect(report).not.toContain('loadInDelayMinutes');
+    expect(report).toContain("from './sr02-scenarios.js'");
+    expect(report).toContain('function generateSr02EvidenceReport');
+    expect(report).toContain('function assertProtected');
+    expect(report).toContain('function runCli');
+    expect(report).toContain('SR-02-EVIDENCE-REPORT-v1');
+    expect(scenarios).not.toContain('SR-02-EVIDENCE-REPORT-v1');
+    expect(scenarios).not.toContain('process.stdout');
+    expect(scenarios).not.toContain('process.stderr');
+    expect(report).not.toMatch(/Date\.now\s*\(/);
+    expect(scenarios).not.toMatch(/Date\.now\s*\(/);
+    expect(scenarios).not.toMatch(/Math\.random\s*\(/);
+    expect(scenarios).not.toMatch(/os\.hostname/);
+    expect(scenarios).not.toMatch(/new Date\s*\(/);
   });
 });

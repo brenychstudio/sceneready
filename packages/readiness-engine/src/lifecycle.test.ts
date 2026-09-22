@@ -6,9 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ACTIVITY_LIFECYCLE_STATES,
+  LIFECYCLE_REASON_CODES,
   PRODUCTION_PHASES,
   canInterveneOnActivity,
   canTransitionProductionPhase,
+  type ActivityInterventionDecision,
+  type LifecycleReasonCode,
+  type PhaseTransitionDecision,
 } from '@sceneready/domain';
 
 import {
@@ -25,6 +29,18 @@ import {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+function asLifecycleReason(reason: LifecycleReasonCode): LifecycleReasonCode {
+  return reason;
+}
+
+function asPhaseDecision(decision: PhaseTransitionDecision): PhaseTransitionDecision {
+  return decision;
+}
+
+function asActivityDecision(decision: ActivityInterventionDecision): ActivityInterventionDecision {
+  return decision;
+}
 
 function passedDomains(): NonNullable<ProductionEvaluationInput['domainFacts']> {
   return PRODUCTION_DOMAINS.map((domain) => ({
@@ -167,10 +183,14 @@ describe('production lifecycle', () => {
   it('treats COMPLETE as terminal', () => {
     expect(canTransitionProductionPhase('COMPLETE', 'PREFLIGHT').allowed).toBe(false);
     expect(canTransitionProductionPhase('COMPLETE', 'STUDIO_ACTIVE').allowed).toBe(false);
-    expect(canTransitionProductionPhase('COMPLETE', 'COMPLETE')).toEqual({
+    const decision = asPhaseDecision(canTransitionProductionPhase('COMPLETE', 'COMPLETE'));
+    expect(decision).toEqual({
       allowed: false,
       reason: 'COMPLETE_IS_TERMINAL',
     });
+    if (!decision.allowed) {
+      expect(asLifecycleReason(decision.reason)).toBe('COMPLETE_IS_TERMINAL');
+    }
   });
 
   it('rejects SHIFT_ACTIVITY on a COMPLETED Gothic activity during EIXAMPLE_ACTIVE', () => {
@@ -204,11 +224,13 @@ describe('production lifecycle', () => {
 
   it('does not apply SR-03 intervention-policy checks to PENDING or ACTIVE activities', () => {
     expect(
-      canInterveneOnActivity({
-        productionPhase: 'EIXAMPLE_ACTIVE',
-        activityState: 'ACTIVE',
-        interventionKind: 'SHIFT_ACTIVITY',
-      }),
+      asActivityDecision(
+        canInterveneOnActivity({
+          productionPhase: 'EIXAMPLE_ACTIVE',
+          activityState: 'ACTIVE',
+          interventionKind: 'SHIFT_ACTIVITY',
+        }),
+      ),
     ).toEqual({ allowed: true });
     expect(
       canInterveneOnActivity({
@@ -217,6 +239,77 @@ describe('production lifecycle', () => {
         interventionKind: 'SHIFT_ACTIVITY',
       }),
     ).toEqual({ allowed: true });
+  });
+
+  it('rejects SHIFT_ACTIVITY when production is COMPLETE and the activity is still ACTIVE', () => {
+    const decision = asActivityDecision(
+      canInterveneOnActivity({
+        productionPhase: 'COMPLETE',
+        activityState: 'ACTIVE',
+        interventionKind: 'SHIFT_ACTIVITY',
+      }),
+    );
+    expect(decision).toEqual({
+      allowed: false,
+      reason: 'PRODUCTION_COMPLETE_IMMUTABLE',
+    });
+    if (!decision.allowed) {
+      expect(asLifecycleReason(decision.reason)).toBe('PRODUCTION_COMPLETE_IMMUTABLE');
+    }
+  });
+
+  it('rejects SHIFT_ACTIVITY when production is COMPLETE and the activity is still PENDING', () => {
+    expect(
+      canInterveneOnActivity({
+        productionPhase: 'COMPLETE',
+        activityState: 'PENDING',
+        interventionKind: 'SHIFT_ACTIVITY',
+      }),
+    ).toEqual({
+      allowed: false,
+      reason: 'PRODUCTION_COMPLETE_IMMUTABLE',
+    });
+  });
+
+  it('keeps completed-activity immutability ahead of a COMPLETE production phase', () => {
+    expect(
+      canInterveneOnActivity({
+        productionPhase: 'COMPLETE',
+        activityState: 'COMPLETED',
+        interventionKind: 'SHIFT_ACTIVITY',
+      }),
+    ).toEqual({
+      allowed: false,
+      reason: 'ACTIVITY_IMMUTABLE_AFTER_COMPLETION',
+    });
+  });
+
+  it('lets productionPhase change the SHIFT_ACTIVITY result for the same activity state', () => {
+    const duringEixample = canInterveneOnActivity({
+      productionPhase: 'EIXAMPLE_ACTIVE',
+      activityState: 'ACTIVE',
+      interventionKind: 'SHIFT_ACTIVITY',
+    });
+    const afterComplete = canInterveneOnActivity({
+      productionPhase: 'COMPLETE',
+      activityState: 'ACTIVE',
+      interventionKind: 'SHIFT_ACTIVITY',
+    });
+    expect(duringEixample).toEqual({ allowed: true });
+    expect(afterComplete).not.toEqual(duringEixample);
+    expect(afterComplete).toEqual({
+      allowed: false,
+      reason: 'PRODUCTION_COMPLETE_IMMUTABLE',
+    });
+  });
+
+  it('publishes the canonical lifecycle reason codes including production completion', () => {
+    expect(LIFECYCLE_REASON_CODES).toEqual([
+      'PHASE_SEQUENCE_MONOTONIC',
+      'COMPLETE_IS_TERMINAL',
+      'ACTIVITY_IMMUTABLE_AFTER_COMPLETION',
+      'PRODUCTION_COMPLETE_IMMUTABLE',
+    ]);
   });
 });
 
@@ -293,6 +386,36 @@ describe('operational outcome metrics', () => {
       riskTransitions: [...makeR2ToRecoveredComparison().riskTransitions].reverse(),
     });
     expect(JSON.stringify(reversed)).toBe(JSON.stringify(forward));
+  });
+});
+
+describe('readiness mathematics documentation', () => {
+  it('documents an SR-SCORE-v1 zero-penalty readiness score of 100', async () => {
+    const readinessDir = dirname(fileURLToPath(import.meta.url));
+    const doc = await readFile(
+      join(readinessDir, '../../../docs/architecture/READINESS-MATHEMATICS.md'),
+      'utf8',
+    );
+    const claims = await readFile(
+      join(readinessDir, '../../../docs/submission/CLAIM-TO-EVIDENCE.md'),
+      'utf8',
+    );
+
+    expect(doc).not.toMatch(/headroom below 100/);
+    expect(doc).toMatch(/all six domains are `PASSED`, the domain penalty is zero/i);
+    expect(doc).toMatch(/zero causal impact penalties means the impact penalty is zero/i);
+    expect(doc).toMatch(/Therefore `readinessScore = 100`/);
+    expect(doc).toMatch(/R1 readiness `86` is a canonical scenario output/);
+    expect(doc).toMatch(/It is not a model cap/);
+    expect(doc).toMatch(/explicit deterministic comparison facts/);
+    expect(doc).toMatch(/not Shadow Simulation/);
+    expect(doc).toMatch(/not an implemented recovery proposal engine/);
+    expect(claims).toMatch(/explicit deterministic comparison facts/);
+    expect(claims).toMatch(/not Shadow Simulation/);
+    expect(claims).toMatch(/not an implemented recovery proposal engine/);
+    expect(claims).toMatch(/2 protected CRITICAL deliverables/);
+    expect(claims).toMatch(/15 minute studio-delay reduction/);
+    expect(claims).toMatch(/monetaryImpact=null/);
   });
 });
 
