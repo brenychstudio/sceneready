@@ -55,6 +55,7 @@ export interface InterventionPolicyContext {
   readonly approvedFallbacks: readonly ApprovedFallbackFact[];
   readonly approvedBackupPathIds: readonly string[];
   readonly equipmentIds: readonly string[];
+  readonly requestableEvidenceScopes: readonly string[];
 }
 
 export const INTERVENTION_POLICY_DENIAL_CODES = [
@@ -73,6 +74,7 @@ export const INTERVENTION_POLICY_DENIAL_CODES = [
   'BACKUP_PATH_NOT_APPROVED',
   'EQUIPMENT_NOT_KNOWN',
   'DURATION_NOT_POSITIVE',
+  'EVIDENCE_SCOPE_NOT_REQUESTABLE',
 ] as const;
 
 export type InterventionPolicyDenialCode = (typeof INTERVENTION_POLICY_DENIAL_CODES)[number];
@@ -448,7 +450,14 @@ export function validateInterventionPolicy(
     }
     case 'REQUEST_MISSING_CONFIRMATION': {
       const closed = requireOpenProduction(context);
-      return closed ?? allow();
+      if (closed !== null) {
+        return closed;
+      }
+      const requestableScopes = new Set(context.requestableEvidenceScopes);
+      if (!requestableScopes.has(intervention.evidenceScope)) {
+        return deny('EVIDENCE_SCOPE_NOT_REQUESTABLE');
+      }
+      return allow();
     }
   }
 }

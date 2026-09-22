@@ -115,6 +115,7 @@ function baseContext(
     approvedFallbacks: [{ activityId: GOTHIC, fallbackLocationId: FALLBACK_LOCATION }],
     approvedBackupPathIds: [BACKUP_PATH],
     equipmentIds: [EQUIPMENT],
+    requestableEvidenceScopes: ['DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY'],
     ...overrides,
   };
 }
@@ -681,6 +682,7 @@ describe('phase-aware intervention policy', () => {
       approvedFallbacks: [...context.approvedFallbacks].reverse(),
       approvedBackupPathIds: [...context.approvedBackupPathIds].reverse(),
       equipmentIds: [...context.equipmentIds].reverse(),
+      requestableEvidenceScopes: [...context.requestableEvidenceScopes].reverse(),
     };
     const intervention = { kind: 'SHIFT_ACTIVITY' as const, activityId: GOTHIC, deltaMinutes: 30 };
     expect(JSON.stringify(validateInterventionPolicy(intervention, reversed))).toBe(
@@ -691,6 +693,108 @@ describe('phase-aware intervention policy', () => {
   it('does not mutate the graph, context, or intervention', () => {
     const context = baseContext();
     const intervention = { kind: 'SHIFT_ACTIVITY' as const, activityId: GOTHIC, deltaMinutes: 30 };
+    freezeValue(context);
+    freezeValue(intervention);
+    const before = JSON.stringify({ context, intervention });
+    validateInterventionPolicy(intervention, context);
+    expect(JSON.stringify({ context, intervention })).toBe(before);
+  });
+
+  it('allows a canonical requestable evidence scope', () => {
+    expect(
+      validateInterventionPolicy(
+        {
+          kind: 'REQUEST_MISSING_CONFIRMATION',
+          evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+        },
+        baseContext(),
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('rejects a syntactically valid evidence scope that is not requestable', () => {
+    expect(
+      validateInterventionPolicy(
+        {
+          kind: 'REQUEST_MISSING_CONFIRMATION',
+          evidenceScope: 'DOCUMENT:DOCUMENT-DOES-NOT-EXIST:VALIDITY',
+        },
+        baseContext(),
+      ),
+    ).toEqual({ allowed: false, code: 'EVIDENCE_SCOPE_NOT_REQUESTABLE' });
+  });
+
+  it('rejects the canonical scope when no evidence scopes are requestable', () => {
+    expect(
+      validateInterventionPolicy(
+        {
+          kind: 'REQUEST_MISSING_CONFIRMATION',
+          evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+        },
+        baseContext({ requestableEvidenceScopes: [] }),
+      ),
+    ).toEqual({ allowed: false, code: 'EVIDENCE_SCOPE_NOT_REQUESTABLE' });
+  });
+
+  it('returns the same confirmation decision when requestable scopes are reversed', () => {
+    const context = baseContext({
+      requestableEvidenceScopes: [
+        'WEATHER:WINDOW:DRIFT',
+        'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+      ],
+    });
+    const reversed = baseContext({
+      requestableEvidenceScopes: [
+        'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+        'WEATHER:WINDOW:DRIFT',
+      ],
+    });
+    const intervention = {
+      kind: 'REQUEST_MISSING_CONFIRMATION' as const,
+      evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+    };
+    expect(JSON.stringify(validateInterventionPolicy(intervention, reversed))).toBe(
+      JSON.stringify(validateInterventionPolicy(intervention, context)),
+    );
+  });
+
+  it('treats duplicate requestable scopes as the same allowlist', () => {
+    const intervention = {
+      kind: 'REQUEST_MISSING_CONFIRMATION' as const,
+      evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+    };
+    const once = validateInterventionPolicy(intervention, baseContext());
+    const duplicated = validateInterventionPolicy(
+      intervention,
+      baseContext({
+        requestableEvidenceScopes: [
+          'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+          'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+        ],
+      }),
+    );
+    expect(JSON.stringify(duplicated)).toBe(JSON.stringify(once));
+    expect(duplicated).toEqual({ allowed: true });
+  });
+
+  it('rejects a requestable scope after production is COMPLETE', () => {
+    expect(
+      validateInterventionPolicy(
+        {
+          kind: 'REQUEST_MISSING_CONFIRMATION',
+          evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+        },
+        baseContext({ productionPhase: 'COMPLETE' }),
+      ),
+    ).toEqual({ allowed: false, code: 'PRODUCTION_COMPLETE_IMMUTABLE' });
+  });
+
+  it('does not mutate a confirmation request or its requestable scopes', () => {
+    const context = baseContext();
+    const intervention = {
+      kind: 'REQUEST_MISSING_CONFIRMATION' as const,
+      evidenceScope: 'DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY',
+    };
     freezeValue(context);
     freezeValue(intervention);
     const before = JSON.stringify({ context, intervention });
