@@ -201,10 +201,14 @@ function requireMutableActivity(
     }
     return { ok: false, decision: deny('POLICY_CONTEXT_MISSING') };
   }
-  if (fact.constraint === 'FIXED') {
-    return { ok: false, decision: deny('FIXED_ACTIVITY_CONSTRAINT') };
-  }
   return { ok: true, fact };
+}
+
+function denyFixedStructure(fact: ActivityPolicyFact): InterventionPolicyDecision | null {
+  if (fact.constraint === 'FIXED') {
+    return deny('FIXED_ACTIVITY_CONSTRAINT');
+  }
+  return null;
 }
 
 function activityInterval(
@@ -365,6 +369,10 @@ export function validateInterventionPolicy(
       if (!activity.ok) {
         return activity.decision;
       }
+      const fixed = denyFixedStructure(activity.fact);
+      if (fixed !== null) {
+        return fixed;
+      }
       const interval = activityInterval(activity.fact);
       if (interval === null) {
         return deny('POLICY_CONTEXT_MISSING');
@@ -381,6 +389,10 @@ export function validateInterventionPolicy(
         if (!activity.ok) {
           return activity.decision;
         }
+        const fixed = denyFixedStructure(activity.fact);
+        if (fixed !== null) {
+          return fixed;
+        }
       }
       return allow();
     }
@@ -390,7 +402,14 @@ export function validateInterventionPolicy(
     }
     case 'INCREASE_TRANSFER_BUFFER': {
       const activity = requireMutableActivity(intervention.transferActivityId, context, indexes);
-      return activity.ok ? allow() : activity.decision;
+      if (!activity.ok) {
+        return activity.decision;
+      }
+      const fixed = denyFixedStructure(activity.fact);
+      if (fixed !== null) {
+        return fixed;
+      }
+      return allow();
     }
     case 'SWITCH_TO_APPROVED_FALLBACK': {
       const activity = requireMutableActivity(intervention.activityId, context, indexes);

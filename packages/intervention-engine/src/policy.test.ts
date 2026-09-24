@@ -21,6 +21,9 @@ const GOTHIC = 'ACT-GOTHIC-LOOK-03';
 const EIXAMPLE = 'ACT-EIXAMPLE-LOOK-05';
 const STUDIO = 'ACT-STUDIO-LOAD-IN';
 const TRANSFER = 'ACT-TRANSFER-01';
+const GOTHIC_SETUP = 'ACT-GOTHIC-SETUP';
+const DEPART_GOTHIC = 'ACT-DEPART-GOTHIC';
+const EIXAMPLE_SETUP = 'ACT-EIXAMPLE-SETUP';
 const GOTHIC_LOCATION = 'LOC-GOTHIC';
 const FALLBACK_LOCATION = 'LOC-FALLBACK';
 const OTHER_LOCATION = 'LOC-OTHER';
@@ -116,6 +119,86 @@ function baseContext(
     approvedBackupPathIds: [BACKUP_PATH],
     equipmentIds: [EQUIPMENT],
     requestableEvidenceScopes: ['DOCUMENT:DOCUMENT-MODEL-RELEASE:VALIDITY'],
+    ...overrides,
+  };
+}
+
+function recoveryContext(
+  overrides: Partial<InterventionPolicyContext> = {},
+): InterventionPolicyContext {
+  const graph = createProductionGraph({
+    productionId: 'BCN-DEMO-01',
+    policyVersion: 'SR-POLICY-v1',
+    fixtureVersion: 'BCN-DEMO-v1',
+    nodes: [
+      createGraphNode(DEPART_GOTHIC, 'ACTIVITY'),
+      createGraphNode(GOTHIC_SETUP, 'ACTIVITY'),
+      createGraphNode(EIXAMPLE_SETUP, 'ACTIVITY'),
+      createGraphNode('LOC-GOTHIC', 'LOCATION'),
+      createGraphNode('LOC-EIXAMPLE', 'LOCATION'),
+      createGraphNode(FALLBACK_LOCATION, 'LOCATION'),
+    ],
+    edges: [],
+  });
+  return {
+    graph,
+    policyVersion: 'SR-POLICY-v1',
+    productionPhase: 'PREFLIGHT',
+    activities: [
+      {
+        activityId: DEPART_GOTHIC,
+        startLocal: '06:40',
+        endLocal: '07:10',
+        locationId: 'LOC-GOTHIC',
+        constraint: 'FIXED',
+      },
+      {
+        activityId: GOTHIC_SETUP,
+        startLocal: '07:10',
+        endLocal: '07:20',
+        locationId: 'LOC-GOTHIC',
+        constraint: 'FIXED',
+      },
+      {
+        activityId: EIXAMPLE_SETUP,
+        startLocal: '08:55',
+        endLocal: '09:05',
+        locationId: 'LOC-EIXAMPLE',
+        constraint: 'FIXED',
+      },
+    ],
+    activityStates: [
+      { activityId: DEPART_GOTHIC, state: 'PENDING' },
+      { activityId: GOTHIC_SETUP, state: 'PENDING' },
+      { activityId: EIXAMPLE_SETUP, state: 'PENDING' },
+    ],
+    locationConstraints: [
+      {
+        locationId: 'LOC-GOTHIC',
+        access: 'PASSED',
+        rights: 'PASSED',
+        windowStartLocal: '06:00',
+        windowEndLocal: '09:00',
+      },
+      {
+        locationId: 'LOC-EIXAMPLE',
+        access: 'PASSED',
+        rights: 'PASSED',
+        windowStartLocal: '08:00',
+        windowEndLocal: '12:00',
+      },
+      {
+        locationId: FALLBACK_LOCATION,
+        access: 'PASSED',
+        rights: 'PASSED',
+        windowStartLocal: '06:00',
+        windowEndLocal: '12:00',
+      },
+    ],
+    approvedFallbacks: [{ activityId: GOTHIC_SETUP, fallbackLocationId: FALLBACK_LOCATION }],
+    approvedBackupPathIds: [],
+    equipmentIds: [],
+    requestableEvidenceScopes: [],
     ...overrides,
   };
 }
@@ -435,7 +518,7 @@ describe('phase-aware intervention policy', () => {
     ).toEqual({ allowed: false, code: 'TARGET_TYPE_MISMATCH' });
   });
 
-  it('rejects shifting or shortening a FIXED activity', () => {
+  it('allows shifting a fixed activity inside its window and rejects shortening it', () => {
     const context = baseContext({
       activities: baseContext().activities.map((activity) =>
         activity.activityId === GOTHIC ? { ...activity, constraint: 'FIXED' as const } : activity,
@@ -446,7 +529,7 @@ describe('phase-aware intervention policy', () => {
         { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC, deltaMinutes: 15 },
         context,
       ),
-    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+    ).toEqual({ allowed: true });
     expect(
       validateInterventionPolicy(
         { kind: 'SHORTEN_ACTIVITY', activityId: GOTHIC, minutes: 10 },
@@ -464,7 +547,7 @@ describe('phase-aware intervention policy', () => {
     ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
   });
 
-  it('rejects buffers and transfer changes that would move a FIXED activity', () => {
+  it('allows a buffer or departure change on a fixed activity and rejects transfer-buffer growth', () => {
     const context = baseContext({
       activities: baseContext().activities.map((activity) =>
         activity.activityId === TRANSFER ? { ...activity, constraint: 'FIXED' as const } : activity,
@@ -475,13 +558,13 @@ describe('phase-aware intervention policy', () => {
         { kind: 'ADD_BUFFER', beforeActivityId: STUDIO, minutes: 10 },
         baseContext(),
       ),
-    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+    ).toEqual({ allowed: true });
     expect(
       validateInterventionPolicy(
         { kind: 'ADJUST_DEPARTURE', transferActivityId: TRANSFER, deltaMinutes: 10 },
         context,
       ),
-    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+    ).toEqual({ allowed: true });
     expect(
       validateInterventionPolicy(
         { kind: 'INCREASE_TRANSFER_BUFFER', transferActivityId: TRANSFER, minutes: 10 },
@@ -809,6 +892,146 @@ describe('phase-aware intervention policy', () => {
         baseContext({ policyVersion: 'SR-POLICY-v2' }),
       ),
     ).toEqual({ allowed: false, code: 'POLICY_VERSION_MISMATCH' });
+  });
+});
+
+describe('canonical fixed schedule recovery', () => {
+  it('allows a preflight shift of pending fixed ACT-GOTHIC-SETUP by -25 inside the window', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('allows a preflight departure adjustment of pending fixed ACT-DEPART-GOTHIC by -20', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'ADJUST_DEPARTURE', transferActivityId: DEPART_GOTHIC, deltaMinutes: -20 },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('allows a preflight buffer before pending fixed ACT-EIXAMPLE-SETUP', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'ADD_BUFFER', beforeActivityId: EIXAMPLE_SETUP, minutes: 10 },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('allows a fixed activity to switch to an approved fallback', () => {
+    expect(
+      validateInterventionPolicy(
+        {
+          kind: 'SWITCH_TO_APPROVED_FALLBACK',
+          activityId: GOTHIC_SETUP,
+          fallbackLocationId: FALLBACK_LOCATION,
+        },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('rejects shortening a fixed activity', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHORTEN_ACTIVITY', activityId: GOTHIC_SETUP, minutes: 5 },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+  });
+
+  it('rejects a reorder that includes a fixed activity', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'REORDER_ACTIVITIES', activityIds: [GOTHIC_SETUP, EIXAMPLE_SETUP] },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+  });
+
+  it('rejects increasing the transfer buffer of a fixed activity', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'INCREASE_TRANSFER_BUFFER', transferActivityId: DEPART_GOTHIC, minutes: 10 },
+        recoveryContext(),
+      ),
+    ).toEqual({ allowed: false, code: 'FIXED_ACTIVITY_CONSTRAINT' });
+  });
+
+  it('rejects a shift of a completed fixed activity before the fixed-structure rule', () => {
+    const context = recoveryContext({
+      activityStates: recoveryContext().activityStates.map((state) =>
+        state.activityId === GOTHIC_SETUP ? { ...state, state: 'COMPLETED' as const } : state,
+      ),
+    });
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        context,
+      ),
+    ).toEqual({ allowed: false, code: 'ACTIVITY_IMMUTABLE_AFTER_COMPLETION' });
+  });
+
+  it('rejects a shift of a pending fixed activity after production is complete', () => {
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        recoveryContext({ productionPhase: 'COMPLETE' }),
+      ),
+    ).toEqual({ allowed: false, code: 'PRODUCTION_COMPLETE_IMMUTABLE' });
+  });
+
+  it('rejects a fixed shift that leaves the confirmed location window', () => {
+    const context = recoveryContext({
+      locationConstraints: recoveryContext().locationConstraints.map((constraint) =>
+        constraint.locationId === 'LOC-GOTHIC'
+          ? { ...constraint, windowStartLocal: '07:00' }
+          : constraint,
+      ),
+    });
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        context,
+      ),
+    ).toEqual({ allowed: false, code: 'LOCATION_WINDOW_VIOLATION' });
+  });
+
+  it('rejects a fixed shift when location access is unresolved', () => {
+    const context = recoveryContext({
+      locationConstraints: recoveryContext().locationConstraints.map((constraint) =>
+        constraint.locationId === 'LOC-GOTHIC'
+          ? { ...constraint, access: 'UNRESOLVED' as const }
+          : constraint,
+      ),
+    });
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        context,
+      ),
+    ).toEqual({ allowed: false, code: 'LOCATION_ACCESS_NOT_CONFIRMED' });
+  });
+
+  it('rejects a fixed shift when location rights are unresolved', () => {
+    const context = recoveryContext({
+      locationConstraints: recoveryContext().locationConstraints.map((constraint) =>
+        constraint.locationId === 'LOC-GOTHIC'
+          ? { ...constraint, rights: 'UNRESOLVED' as const }
+          : constraint,
+      ),
+    });
+    expect(
+      validateInterventionPolicy(
+        { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+        context,
+      ),
+    ).toEqual({ allowed: false, code: 'RIGHTS_NOT_CONFIRMED' });
   });
 });
 
