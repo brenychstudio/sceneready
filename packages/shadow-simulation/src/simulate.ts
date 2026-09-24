@@ -18,11 +18,16 @@ import { applyIntervention } from './apply.js';
 import {
   cloneShadowInputs,
   policyContextFromOperational,
-  projectEvaluation,
   type ShadowCallTimeFact,
   type ShadowCloneDenialCode,
   type ShadowOperationalState,
 } from './clone.js';
+import {
+  canonicalRecoveryProjection,
+  projectShadowEvaluation,
+  type ProjectionDenialCode,
+  type RecoveryProjectionPolicy,
+} from './projection.js';
 import {
   compareProductionAssessments,
   type ShadowComparison,
@@ -44,13 +49,14 @@ export const SHADOW_SIMULATION_DENIAL_CODES = [
 export type ShadowSimulationLocalDenialCode = (typeof SHADOW_SIMULATION_DENIAL_CODES)[number];
 
 export type ShadowSimulationDenialCode =
-  ShadowSimulationLocalDenialCode | InterventionPolicyDenialCode;
+  ShadowSimulationLocalDenialCode | InterventionPolicyDenialCode | ProjectionDenialCode;
 
 export interface ShadowSimulationInput {
   readonly policyContext: InterventionPolicyContext;
   readonly evaluation: ProductionEvaluationInput;
   readonly interventions: readonly InterventionPrimitive[];
   readonly callTimes: readonly ShadowCallTimeFact[];
+  readonly projection: RecoveryProjectionPolicy;
 }
 
 export interface ShadowGraphSnapshot {
@@ -183,7 +189,8 @@ export function simulateShadowProduction(input: ShadowSimulationInput): ShadowSi
     return denialFromClone(cloned.code);
   }
 
-  let operational = cloned.operational;
+  const liveOperational = cloned.operational;
+  let operational = liveOperational;
   for (let index = 0; index < parsed.interventions.length; index += 1) {
     const intervention = parsed.interventions[index];
     if (intervention === undefined) {
@@ -203,10 +210,17 @@ export function simulateShadowProduction(input: ShadowSimulationInput): ShadowSi
     operational = applied.state;
   }
 
-  // Operational overlays are not readiness facts. Both assessments use the
-  // supplied evaluation projection and the same evaluator.
+  const projected = projectShadowEvaluation(
+    cloned.evaluation,
+    liveOperational,
+    operational,
+    input.projection,
+  );
+  if (!projected.ok) {
+    return fail(projected.code, null);
+  }
   const liveEvaluation = cloned.evaluation;
-  const shadowEvaluation = projectEvaluation(input.evaluation);
+  const shadowEvaluation = projected.evaluation;
   const liveAssessment = evaluateProductionReadiness(liveEvaluation);
   const shadowAssessment = evaluateProductionReadiness(shadowEvaluation);
   const comparison = compareProductionAssessments(liveAssessment, shadowAssessment);
@@ -226,6 +240,7 @@ export function simulateShadowProduction(input: ShadowSimulationInput): ShadowSi
     liveGraphFingerprint: graph.fingerprint,
     interventions: parsed.interventions,
     operational,
+    projection: canonicalRecoveryProjection(input.projection),
     evaluation: shadowEvaluation,
   });
   const simulationId = fingerprintProductionPack({

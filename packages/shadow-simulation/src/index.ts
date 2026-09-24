@@ -15,3 +15,12 @@ export {
   type ShadowComparison,
   type ShadowRiskTransition,
 } from './compare.js';
+export {
+  EMPTY_RECOVERY_PROJECTION,
+  PROJECTION_DENIAL_CODES,
+  RECOVERY_PROJECTION_SCHEMA_VERSION,
+  type ProjectionDenialCode,
+  type ProjectionPredicate,
+  type RecoveryProjectionPolicy,
+  type RiskProjectionRule,
+} from './projection.js';

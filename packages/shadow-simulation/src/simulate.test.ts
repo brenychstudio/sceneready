@@ -19,6 +19,13 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { compareProductionAssessments } from './compare.js';
+import {
+  EMPTY_RECOVERY_PROJECTION,
+  RECOVERY_PROJECTION_SCHEMA_VERSION,
+  type ProjectionPredicate,
+  type RecoveryProjectionPolicy,
+  type RiskProjectionRule,
+} from './projection.js';
 import { simulateShadowProduction, type ShadowSimulationInput } from './simulate.js';
 
 const GOTHIC = 'ACT-GOTHIC-LOOK-03';
@@ -185,6 +192,7 @@ function simulationInput(
     readonly policy?: Partial<InterventionPolicyContext>;
     readonly evaluation?: Partial<ProductionEvaluationInput>;
     readonly callTimes?: ShadowSimulationInput['callTimes'];
+    readonly projection?: RecoveryProjectionPolicy;
   } = {},
 ): ShadowSimulationInput {
   return {
@@ -192,6 +200,7 @@ function simulationInput(
     evaluation: evaluation(overrides.evaluation),
     interventions,
     callTimes: overrides.callTimes ?? [{ personId: PERSON, callLocal: '08:00' }],
+    projection: overrides.projection ?? EMPTY_RECOVERY_PROJECTION,
   };
 }
 
@@ -205,6 +214,7 @@ function inputSnapshot(input: ShadowSimulationInput): string {
     evaluation: input.evaluation,
     interventions: input.interventions,
     policyContext: input.policyContext,
+    projection: input.projection,
   });
 }
 
@@ -524,6 +534,7 @@ describe('simulateShadowProduction', () => {
       },
       interventions: input.interventions,
       callTimes: [...input.callTimes].reverse(),
+      projection: input.projection,
     };
 
     const forward = simulateShadowProduction(freezeInput(input));
@@ -851,6 +862,8 @@ describe('simulateShadowProduction', () => {
       /strands/i,
       /evaluateShadowReadiness/,
       /shadowScore/,
+      /optionAScore/,
+      /recoveryScoreOverride/,
       /OPTION-A/,
       /BCN-DEMO-v1/,
       /recoveredComparison/,
@@ -866,6 +879,501 @@ describe('simulateShadowProduction', () => {
     }
     expect(source).toMatch(/evaluateProductionReadiness/);
     expect(source).toMatch(/validateInterventionPolicy/);
+  });
+});
+
+const GOTHIC_SETUP = 'ACT-GOTHIC-SETUP';
+const DEPART_GOTHIC = 'ACT-DEPART-GOTHIC';
+const MODEL = 'PERSON-MODEL';
+const HMU = 'PERSON-HMU';
+const PHOTO_ASSISTANT = 'PERSON-PHOTO-ASSISTANT';
+
+const earlyRecoveryRisks: readonly ReadinessRiskFact[] = [
+  {
+    riskId: 'RISK-GOTHIC-LOOK-03',
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    subjectId: GOTHIC,
+    severity: 'CRITICAL',
+    sourceEvidenceIds: ['EVIDENCE-TRAVEL-DRIFT', 'EVIDENCE-WEATHER-DRIFT'],
+    reasons: ['WEATHER_WINDOW_COMPRESSION'],
+  },
+  {
+    riskId: 'RISK-EIXAMPLE-LOOK-05',
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    subjectId: EIXAMPLE,
+    severity: 'HIGH',
+    sourceEvidenceIds: ['EVIDENCE-WEATHER-DRIFT', 'EVIDENCE-TRAVEL-DRIFT'],
+    reasons: ['WEATHER_WINDOW_COMPRESSION'],
+  },
+  {
+    riskId: 'RISK-STUDIO-LOAD-IN',
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    subjectId: STUDIO,
+    severity: 'MEDIUM',
+    sourceEvidenceIds: ['EVIDENCE-TRAVEL-DRIFT', 'EVIDENCE-WEATHER-DRIFT'],
+    reasons: ['TRAVEL_LOAD_IN_DELAY'],
+  },
+];
+
+const earlyRecoveryImpacts: readonly ReadinessImpactFact[] = [
+  {
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    deliverableId: 'DELIVERABLE-D2',
+    severity: 'CRITICAL',
+    sourceEvidenceIds: ['EVIDENCE-WEATHER-DRIFT', 'EVIDENCE-TRAVEL-DRIFT'],
+    riskIds: ['RISK-GOTHIC-LOOK-03'],
+  },
+  {
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    deliverableId: 'DELIVERABLE-D3',
+    severity: 'HIGH',
+    sourceEvidenceIds: ['EVIDENCE-WEATHER-DRIFT'],
+    riskIds: ['RISK-EIXAMPLE-LOOK-05'],
+  },
+  {
+    incidentId: 'INCIDENT-COMPOUND-DRIFT',
+    deliverableId: 'DELIVERABLE-D5',
+    severity: 'MEDIUM',
+    sourceEvidenceIds: ['EVIDENCE-TRAVEL-DRIFT'],
+    riskIds: ['RISK-STUDIO-LOAD-IN'],
+  },
+];
+
+function activityDeltaAtMost(
+  kind: 'ACTIVITY_START_DELTA_AT_MOST' | 'ACTIVITY_END_DELTA_AT_MOST',
+  activityId: string,
+  deltaMinutes: number,
+): ProjectionPredicate {
+  return { kind, activityId, deltaMinutes };
+}
+
+function callDeltaAtMost(personId: string, deltaMinutes: number): ProjectionPredicate {
+  return { kind: 'CALL_TIME_DELTA_AT_MOST', personId, deltaMinutes };
+}
+
+const completeEarlyRecovery: readonly ProjectionPredicate[] = [
+  activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25),
+  activityDeltaAtMost('ACTIVITY_END_DELTA_AT_MOST', GOTHIC_SETUP, -25),
+  activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', DEPART_GOTHIC, -20),
+  activityDeltaAtMost('ACTIVITY_END_DELTA_AT_MOST', DEPART_GOTHIC, -20),
+  callDeltaAtMost(MODEL, -25),
+  callDeltaAtMost(HMU, -25),
+  callDeltaAtMost(PHOTO_ASSISTANT, -25),
+];
+
+const studioLoadInRecovery: readonly ProjectionPredicate[] = [
+  activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', DEPART_GOTHIC, -20),
+  activityDeltaAtMost('ACTIVITY_END_DELTA_AT_MOST', DEPART_GOTHIC, -20),
+  callDeltaAtMost(MODEL, -25),
+  callDeltaAtMost(HMU, -25),
+  callDeltaAtMost(PHOTO_ASSISTANT, -25),
+];
+
+function recoveryRule(
+  ruleId: string,
+  targetRiskId: string,
+  when: readonly ProjectionPredicate[],
+  afterSeverity: RiskProjectionRule['afterSeverity'],
+): RiskProjectionRule {
+  return { ruleId, targetRiskId, when, afterSeverity };
+}
+
+function canonicalProjection(
+  rules: readonly RiskProjectionRule[] = [
+    recoveryRule('RULE-EARLY-GOTHIC-BLOCK', 'RISK-GOTHIC-LOOK-03', completeEarlyRecovery, null),
+    recoveryRule('RULE-EARLY-STUDIO-LOAD-IN', 'RISK-STUDIO-LOAD-IN', studioLoadInRecovery, 'LOW'),
+  ],
+): RecoveryProjectionPolicy {
+  return { schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION, rules };
+}
+
+const canonicalInterventions: readonly InterventionPrimitive[] = [
+  { kind: 'SHIFT_ACTIVITY', activityId: GOTHIC_SETUP, deltaMinutes: -25 },
+  { kind: 'ADJUST_CALL_TIME', personId: MODEL, deltaMinutes: -25 },
+  { kind: 'ADJUST_CALL_TIME', personId: HMU, deltaMinutes: -25 },
+  { kind: 'ADJUST_CALL_TIME', personId: PHOTO_ASSISTANT, deltaMinutes: -25 },
+  { kind: 'ADJUST_DEPARTURE', transferActivityId: DEPART_GOTHIC, deltaMinutes: -20 },
+];
+
+const canonicalCallTimes: ShadowSimulationInput['callTimes'] = [
+  { personId: MODEL, callLocal: '06:30' },
+  { personId: HMU, callLocal: '06:30' },
+  { personId: PHOTO_ASSISTANT, callLocal: '06:30' },
+];
+
+function canonicalRecoveryInput(
+  interventions: readonly InterventionPrimitive[] = canonicalInterventions,
+  projection: RecoveryProjectionPolicy = canonicalProjection(),
+): ShadowSimulationInput {
+  return simulationInput(interventions, {
+    policy: {
+      graph: createProductionGraph({
+        productionId: 'BCN-DEMO-01',
+        policyVersion: 'SR-POLICY-v1',
+        fixtureVersion: 'BCN-DEMO-v1',
+        nodes: [
+          createGraphNode(DEPART_GOTHIC, 'ACTIVITY'),
+          createGraphNode(GOTHIC_SETUP, 'ACTIVITY'),
+          createGraphNode('LOC-GOTHIC', 'LOCATION'),
+          createGraphNode(MODEL, 'PERSON'),
+          createGraphNode(HMU, 'PERSON'),
+          createGraphNode(PHOTO_ASSISTANT, 'PERSON'),
+        ],
+        edges: [],
+      }),
+      activities: [
+        {
+          activityId: DEPART_GOTHIC,
+          startLocal: '06:40',
+          endLocal: '07:10',
+          locationId: 'LOC-GOTHIC',
+          constraint: 'FIXED',
+        },
+        {
+          activityId: GOTHIC_SETUP,
+          startLocal: '07:10',
+          endLocal: '07:20',
+          locationId: 'LOC-GOTHIC',
+          constraint: 'FIXED',
+        },
+      ],
+      activityStates: [
+        { activityId: DEPART_GOTHIC, state: 'PENDING' },
+        { activityId: GOTHIC_SETUP, state: 'PENDING' },
+      ],
+      locationConstraints: [
+        {
+          locationId: 'LOC-GOTHIC',
+          access: 'PASSED',
+          rights: 'PASSED',
+          windowStartLocal: '05:00',
+          windowEndLocal: '09:00',
+        },
+      ],
+      approvedFallbacks: [],
+      approvedBackupPathIds: [],
+      equipmentIds: [],
+      requestableEvidenceScopes: [CONFIRMATION_SCOPE],
+    },
+    evaluation: { risks: earlyRecoveryRisks, impacts: earlyRecoveryImpacts },
+    callTimes: canonicalCallTimes,
+    projection,
+  });
+}
+
+describe('operational recovery projection', () => {
+  it('keeps readiness unchanged when the projection policy is empty', () => {
+    const input = freezeInput(
+      canonicalRecoveryInput(canonicalInterventions, EMPTY_RECOVERY_PROJECTION),
+    );
+    const before = inputSnapshot(input);
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.simulation.liveAssessment.readinessScore).toBe(74);
+    expect(result.simulation.shadowAssessment.readinessScore).toBe(74);
+    expect(result.simulation.liveAssessment.confidenceScore).toBe(96);
+    expect(result.simulation.shadowAssessment.confidenceScore).toBe(96);
+    expect(result.simulation.comparison.readinessDelta).toBe(0);
+    expect(result.simulation.resolvedOrReducedRisks).toEqual([]);
+  });
+
+  it('derives shadow readiness from the operational early-recovery deltas', () => {
+    const input = freezeInput(canonicalRecoveryInput());
+    const before = inputSnapshot(input);
+    const direct = evaluateProductionReadiness(input.evaluation);
+    const result = simulateShadowProduction(input);
+    const repeated = simulateShadowProduction(input);
+
+    expect(direct.readinessScore).toBe(74);
+    expect(direct.confidenceScore).toBe(96);
+    expect(result.ok).toBe(true);
+    expect(JSON.stringify(result)).toBe(JSON.stringify(repeated));
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok || !repeated.ok) {
+      return;
+    }
+
+    const shadow = result.simulation.shadowAssessment;
+    const rescored = evaluateProductionReadiness({
+      ...input.evaluation,
+      risks: shadow.risks,
+      impacts: shadow.impacts,
+    });
+    expect(result.simulation.liveAssessment.readinessScore).toBe(74);
+    expect(shadow.readinessScore).toBe(89);
+    expect(shadow.readinessScore).toBe(rescored.readinessScore);
+    expect(result.simulation.liveAssessment.confidenceScore).toBe(96);
+    expect(shadow.confidenceScore).toBe(96);
+    expect(shadow.evidenceReferences).toEqual(result.simulation.liveAssessment.evidenceReferences);
+    expect(shadow.status).toBe(rescored.status);
+    expect(result.simulation.comparison.statusAfter).toBe(shadow.status);
+    expect(result.simulation.comparison.readinessDelta).toBe(
+      shadow.readinessScore - result.simulation.liveAssessment.readinessScore,
+    );
+
+    expect(shadow.risks.map((risk) => [risk.riskId, risk.severity])).toEqual([
+      ['RISK-EIXAMPLE-LOOK-05', 'HIGH'],
+      ['RISK-STUDIO-LOAD-IN', 'LOW'],
+    ]);
+    expect(result.simulation.comparison.riskTransitions).toEqual([
+      {
+        riskId: 'RISK-GOTHIC-LOOK-03',
+        incidentId: 'INCIDENT-COMPOUND-DRIFT',
+        subjectId: GOTHIC,
+        beforeSeverity: 'CRITICAL',
+        afterSeverity: null,
+      },
+      {
+        riskId: 'RISK-STUDIO-LOAD-IN',
+        incidentId: 'INCIDENT-COMPOUND-DRIFT',
+        subjectId: STUDIO,
+        beforeSeverity: 'MEDIUM',
+        afterSeverity: 'LOW',
+      },
+    ]);
+    expect(shadow.impacts).toEqual([
+      earlyRecoveryImpacts[1],
+      {
+        incidentId: 'INCIDENT-COMPOUND-DRIFT',
+        deliverableId: 'DELIVERABLE-D5',
+        severity: 'LOW',
+        sourceEvidenceIds: ['EVIDENCE-TRAVEL-DRIFT', 'EVIDENCE-WEATHER-DRIFT'],
+        riskIds: ['RISK-STUDIO-LOAD-IN'],
+      },
+    ]);
+    expect(
+      result.simulation.shadowGraph.operational.activities.find(
+        (item) => item.activityId === GOTHIC_SETUP,
+      ),
+    ).toMatchObject({ constraint: 'FIXED', startMinute: 6 * 60 + 45, endMinute: 6 * 60 + 55 });
+    expect(
+      input.policyContext.activities.find((item) => item.activityId === GOTHIC_SETUP),
+    ).toMatchObject({
+      startLocal: '07:10',
+      endLocal: '07:20',
+    });
+  });
+
+  it('does not apply a recovery transition when one required delta is missing', () => {
+    const input = freezeInput(
+      canonicalRecoveryInput(
+        canonicalInterventions.filter((item) => !('personId' in item) || item.personId !== HMU),
+      ),
+    );
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.simulation.shadowAssessment.readinessScore).toBe(74);
+    expect(result.simulation.shadowAssessment.readinessScore).not.toBe(89);
+    expect(result.simulation.comparison.riskTransitions).toEqual([]);
+    expect(
+      result.simulation.shadowAssessment.risks.find(
+        (risk) => risk.riskId === 'RISK-GOTHIC-LOOK-03',
+      ),
+    ).toMatchObject({ severity: 'CRITICAL' });
+    expect(
+      result.simulation.shadowAssessment.risks.find(
+        (risk) => risk.riskId === 'RISK-STUDIO-LOAD-IN',
+      ),
+    ).toMatchObject({ severity: 'MEDIUM' });
+  });
+
+  it('fails closed for an unknown target risk, a missing predicate target, and conflicting rules', () => {
+    const unknown = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput(canonicalInterventions, {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule(
+              'RULE-UNKNOWN',
+              'RISK-NOT-PRESENT',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, 0)],
+              'LOW',
+            ),
+          ],
+        }),
+      ),
+    );
+    expect(unknown).toEqual({
+      ok: false,
+      code: 'UNKNOWN_PROJECTION_RISK',
+      interventionIndex: null,
+    });
+
+    const missing = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput(canonicalInterventions, {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule(
+              'RULE-MISSING-TARGET',
+              'RISK-GOTHIC-LOOK-03',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', 'ACT-NOT-PRESENT', 0)],
+              null,
+            ),
+          ],
+        }),
+      ),
+    );
+    expect(missing).toEqual({
+      ok: false,
+      code: 'PROJECTION_PREDICATE_TARGET_MISSING',
+      interventionIndex: null,
+    });
+    expect(missing).not.toHaveProperty('simulation');
+
+    const conflict = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput([], {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule('RULE-REMOVE', 'RISK-GOTHIC-LOOK-03', [], null),
+            recoveryRule('RULE-LOWER', 'RISK-GOTHIC-LOOK-03', [], 'LOW'),
+          ],
+        }),
+      ),
+    );
+    expect(conflict).toEqual({
+      ok: false,
+      code: 'CONFLICTING_PROJECTION_RULES',
+      interventionIndex: null,
+    });
+  });
+
+  it('fails closed for a duplicate rule id, a bad predicate, a version mismatch, and an undeclared impact risk', () => {
+    const duplicate = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput([], {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [], null),
+            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [], 'LOW'),
+          ],
+        }),
+      ),
+    );
+    expect(duplicate).toEqual({
+      ok: false,
+      code: 'DUPLICATE_PROJECTION_RULE',
+      interventionIndex: null,
+    });
+
+    const unsupported = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput([], {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule(
+              'RULE-BAD',
+              'RISK-GOTHIC-LOOK-03',
+              [
+                {
+                  kind: 'NOT_A_PREDICATE',
+                  activityId: GOTHIC_SETUP,
+                  deltaMinutes: 0,
+                } as unknown as ProjectionPredicate,
+              ],
+              null,
+            ),
+          ],
+        }),
+      ),
+    );
+    expect(unsupported).toEqual({
+      ok: false,
+      code: 'UNSUPPORTED_PROJECTION_PREDICATE',
+      interventionIndex: null,
+    });
+
+    const mismatch = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput([], {
+          schemaVersion: 'SR-RECOVERY-PROJECTION-v0',
+          rules: [],
+        } as unknown as RecoveryProjectionPolicy),
+      ),
+    );
+    expect(mismatch).toEqual({
+      ok: false,
+      code: 'PROJECTION_VERSION_MISMATCH',
+      interventionIndex: null,
+    });
+
+    const undeclared = simulateShadowProduction(
+      freezeInput(
+        simulationInput([], {
+          evaluation: {
+            risks: earlyRecoveryRisks,
+            impacts: [
+              {
+                incidentId: 'INCIDENT-COMPOUND-DRIFT',
+                deliverableId: 'DELIVERABLE-D2',
+                severity: 'CRITICAL',
+                sourceEvidenceIds: ['EVIDENCE-WEATHER-DRIFT', 'EVIDENCE-TRAVEL-DRIFT'],
+                riskIds: ['RISK-GOTHIC-LOOK-03', 'RISK-NOT-LIVE'],
+              },
+            ],
+          },
+          projection: EMPTY_RECOVERY_PROJECTION,
+        }),
+      ),
+    );
+    expect(undeclared).toEqual({
+      ok: false,
+      code: 'UNDECLARED_IMPACT_RISK',
+      interventionIndex: null,
+    });
+  });
+
+  it('canonicalizes projection rule order and changes the fingerprint when a rule changes', () => {
+    const forward = freezeInput(canonicalRecoveryInput());
+    const reversed = freezeInput(
+      canonicalRecoveryInput(
+        canonicalInterventions,
+        canonicalProjection([...canonicalProjection().rules].reverse()),
+      ),
+    );
+    const changed = freezeInput(
+      canonicalRecoveryInput(
+        canonicalInterventions,
+        canonicalProjection([
+          recoveryRule(
+            'RULE-EARLY-GOTHIC-BLOCK',
+            'RISK-GOTHIC-LOOK-03',
+            completeEarlyRecovery,
+            'LOW',
+          ),
+          recoveryRule(
+            'RULE-EARLY-STUDIO-LOAD-IN',
+            'RISK-STUDIO-LOAD-IN',
+            studioLoadInRecovery,
+            'LOW',
+          ),
+        ]),
+      ),
+    );
+    const first = simulateShadowProduction(forward);
+    const second = simulateShadowProduction(reversed);
+    const third = simulateShadowProduction(changed);
+
+    expect(first.ok && second.ok && third.ok).toBe(true);
+    if (!first.ok || !second.ok || !third.ok) {
+      return;
+    }
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    expect(first.simulation.fingerprint).toBe(second.simulation.fingerprint);
+    expect(first.simulation.simulationId).toBe(second.simulation.simulationId);
+    expect(third.simulation.fingerprint).not.toBe(first.simulation.fingerprint);
+    expect(third.simulation.simulationId).not.toBe(first.simulation.simulationId);
+    expect(inputSnapshot(forward)).toBe(inputSnapshot(forward));
   });
 });
 
