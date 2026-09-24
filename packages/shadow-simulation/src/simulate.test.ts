@@ -280,10 +280,7 @@ describe('simulateShadowProduction', () => {
 
   it('fails closed on a policy denial before any shadow result is returned', () => {
     const input = freezeInput(
-      simulationInput([
-        shiftGothic,
-        { kind: 'SHIFT_ACTIVITY', activityId: STUDIO, deltaMinutes: 15 },
-      ]),
+      simulationInput([shiftGothic, { kind: 'SHORTEN_ACTIVITY', activityId: STUDIO, minutes: 15 }]),
     );
     const before = inputSnapshot(input);
     const result = simulateShadowProduction(input);
@@ -295,6 +292,93 @@ describe('simulateShadowProduction', () => {
     });
     expect(inputSnapshot(input)).toBe(before);
     expect(result).not.toHaveProperty('simulation');
+  });
+
+  it('applies a shift of a fixed activity only to shadow operational state', () => {
+    const input = freezeInput(
+      simulationInput([{ kind: 'SHIFT_ACTIVITY', activityId: STUDIO, deltaMinutes: 15 }]),
+    );
+    const before = inputSnapshot(input);
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok) {
+      return;
+    }
+    expect(
+      result.simulation.shadowGraph.operational.activities.find(
+        (item) => item.activityId === STUDIO,
+      ),
+    ).toMatchObject({
+      constraint: 'FIXED',
+      startMinute: 16 * 60 + 15,
+      endMinute: 17 * 60 + 15,
+    });
+    expect(input.policyContext.graph.graphRevision).toBe(1);
+    expect(result.simulation.shadowGraphRevision).toBe(2);
+  });
+
+  it('applies a departure adjustment of a fixed activity only to shadow operational state', () => {
+    const input = freezeInput(
+      simulationInput(
+        [{ kind: 'ADJUST_DEPARTURE', transferActivityId: TRANSFER, deltaMinutes: 20 }],
+        {
+          policy: {
+            activities: policyContext().activities.map((activity) =>
+              activity.activityId === TRANSFER
+                ? { ...activity, constraint: 'FIXED' as const }
+                : activity,
+            ),
+          },
+        },
+      ),
+    );
+    const before = inputSnapshot(input);
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok) {
+      return;
+    }
+    expect(
+      result.simulation.shadowGraph.operational.activities.find(
+        (item) => item.activityId === TRANSFER,
+      ),
+    ).toMatchObject({
+      constraint: 'FIXED',
+      startMinute: 9 * 60 + 20,
+      endMinute: 9 * 60 + 50,
+    });
+    expect(input.policyContext.graph.graphRevision).toBe(1);
+    expect(result.simulation.shadowGraphRevision).toBe(2);
+  });
+
+  it('applies a buffer before a fixed activity only to shadow operational state', () => {
+    const input = freezeInput(
+      simulationInput([{ kind: 'ADD_BUFFER', beforeActivityId: STUDIO, minutes: 10 }]),
+    );
+    const before = inputSnapshot(input);
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok) {
+      return;
+    }
+    expect(
+      result.simulation.shadowGraph.operational.activities.find(
+        (item) => item.activityId === STUDIO,
+      ),
+    ).toMatchObject({
+      constraint: 'FIXED',
+      startMinute: 16 * 60,
+      endMinute: 17 * 60,
+      bufferBeforeMinutes: 10,
+    });
+    expect(input.policyContext.graph.graphRevision).toBe(1);
+    expect(result.simulation.shadowGraphRevision).toBe(2);
   });
 
   it('fails a composed sequence closed when a later shift leaves the confirmed window', () => {
