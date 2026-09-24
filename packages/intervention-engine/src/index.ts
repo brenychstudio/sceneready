@@ -35,3 +35,18 @@ export {
   type LocationConfirmation,
   type LocationConstraintFact,
 } from './policy.js';
+export {
+  ACTIVITY_WINDOW_CONSTRAINT_KIND,
+  type ActivityWindowConstraint,
+  type FeasibilityActivityView,
+} from './constraints.js';
+export {
+  evaluateInterventionFeasibility,
+  FEASIBILITY_REASONS,
+  type FeasibilityResult,
+  type FeasibilityRiskTransitionView,
+  type FeasibilitySeverity,
+  type FeasibilitySimulationView,
+  type RecoveryFeasibilityPolicy,
+  type SystemicFeasibilityReason,
+} from './feasibility.js';
