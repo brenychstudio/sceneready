@@ -1195,7 +1195,7 @@ describe('operational recovery projection', () => {
             recoveryRule(
               'RULE-UNKNOWN',
               'RISK-NOT-PRESENT',
-              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, 0)],
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25)],
               'LOW',
             ),
           ],
@@ -1216,7 +1216,7 @@ describe('operational recovery projection', () => {
             recoveryRule(
               'RULE-MISSING-TARGET',
               'RISK-GOTHIC-LOOK-03',
-              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', 'ACT-NOT-PRESENT', 0)],
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', 'ACT-NOT-PRESENT', -25)],
               null,
             ),
           ],
@@ -1232,11 +1232,21 @@ describe('operational recovery projection', () => {
 
     const conflict = simulateShadowProduction(
       freezeInput(
-        canonicalRecoveryInput([], {
+        canonicalRecoveryInput(canonicalInterventions, {
           schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
           rules: [
-            recoveryRule('RULE-REMOVE', 'RISK-GOTHIC-LOOK-03', [], null),
-            recoveryRule('RULE-LOWER', 'RISK-GOTHIC-LOOK-03', [], 'LOW'),
+            recoveryRule(
+              'RULE-REMOVE',
+              'RISK-GOTHIC-LOOK-03',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25)],
+              null,
+            ),
+            recoveryRule(
+              'RULE-LOWER',
+              'RISK-GOTHIC-LOOK-03',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25)],
+              'LOW',
+            ),
           ],
         }),
       ),
@@ -1254,8 +1264,18 @@ describe('operational recovery projection', () => {
         canonicalRecoveryInput([], {
           schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
           rules: [
-            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [], null),
-            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [], 'LOW'),
+            recoveryRule(
+              'RULE-SAME',
+              'RISK-GOTHIC-LOOK-03',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25)],
+              null,
+            ),
+            recoveryRule(
+              'RULE-SAME',
+              'RISK-GOTHIC-LOOK-03',
+              [activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25)],
+              'LOW',
+            ),
           ],
         }),
       ),
@@ -1331,6 +1351,117 @@ describe('operational recovery projection', () => {
       code: 'UNDECLARED_IMPACT_RISK',
       interventionIndex: null,
     });
+  });
+
+  it('rejects an empty rule and thresholds that do not require a real recovery move', () => {
+    const deny = (rules: readonly RiskProjectionRule[], code: string) => {
+      expect(
+        simulateShadowProduction(
+          freezeInput(
+            canonicalRecoveryInput([], {
+              schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+              rules,
+            }),
+          ),
+        ),
+      ).toEqual({ ok: false, code, interventionIndex: null });
+    };
+    const gothic = (deltaMinutes: number) =>
+      activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, deltaMinutes);
+    const gothicEnd = (deltaMinutes: number) =>
+      activityDeltaAtMost('ACTIVITY_END_DELTA_AT_MOST', GOTHIC_SETUP, deltaMinutes);
+    const call = (deltaMinutes: number): ProjectionPredicate => ({
+      kind: 'CALL_TIME_DELTA_AT_MOST',
+      personId: MODEL,
+      deltaMinutes,
+    });
+    const buffer = (deltaMinutes: number): ProjectionPredicate => ({
+      kind: 'BUFFER_BEFORE_AT_LEAST',
+      activityId: GOTHIC_SETUP,
+      deltaMinutes,
+    });
+
+    deny([recoveryRule('RULE-EMPTY', 'RISK-GOTHIC-LOOK-03', [], null)], 'EMPTY_PROJECTION_RULE');
+    deny(
+      [recoveryRule('RULE-START-ZERO', 'RISK-GOTHIC-LOOK-03', [gothic(0)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-START-LATER', 'RISK-GOTHIC-LOOK-03', [gothic(15)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-END-ZERO', 'RISK-GOTHIC-LOOK-03', [gothicEnd(0)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-START-TOO-EARLY', 'RISK-GOTHIC-LOOK-03', [gothic(-121)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-END-TOO-EARLY', 'RISK-GOTHIC-LOOK-03', [gothicEnd(-121)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-CALL-ZERO', 'RISK-GOTHIC-LOOK-03', [call(0)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-CALL-TOO-EARLY', 'RISK-GOTHIC-LOOK-03', [call(-91)], null)],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-BUFFER-ZERO', 'RISK-GOTHIC-LOOK-03', [buffer(0)], 'LOW')],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-BUFFER-NEGATIVE', 'RISK-GOTHIC-LOOK-03', [buffer(-1)], 'LOW')],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+    deny(
+      [recoveryRule('RULE-BUFFER-TOO-LARGE', 'RISK-GOTHIC-LOOK-03', [buffer(46)], 'LOW')],
+      'INVALID_PROJECTION_THRESHOLD',
+    );
+  });
+
+  it('rejects a repeated rule id even when the two copies are identical', () => {
+    const predicate = activityDeltaAtMost('ACTIVITY_START_DELTA_AT_MOST', GOTHIC_SETUP, -25);
+    const result = simulateShadowProduction(
+      freezeInput(
+        canonicalRecoveryInput([], {
+          schemaVersion: RECOVERY_PROJECTION_SCHEMA_VERSION,
+          rules: [
+            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [predicate], null),
+            recoveryRule('RULE-SAME', 'RISK-GOTHIC-LOOK-03', [predicate], null),
+          ],
+        }),
+      ),
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: 'DUPLICATE_PROJECTION_RULE',
+      interventionIndex: null,
+    });
+  });
+
+  it('does not change readiness when a material predicate does not match the operational delta', () => {
+    const input = freezeInput(canonicalRecoveryInput([], canonicalProjection()));
+    const before = inputSnapshot(input);
+    const result = simulateShadowProduction(input);
+
+    expect(result.ok).toBe(true);
+    expect(inputSnapshot(input)).toBe(before);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.simulation.liveAssessment.readinessScore).toBe(74);
+    expect(result.simulation.shadowAssessment.readinessScore).toBe(74);
+    expect(result.simulation.comparison.riskTransitions).toEqual([]);
+    expect(
+      result.simulation.shadowAssessment.risks.find(
+        (risk) => risk.riskId === 'RISK-GOTHIC-LOOK-03',
+      ),
+    ).toMatchObject({ severity: 'CRITICAL' });
   });
 
   it('canonicalizes projection rule order and changes the fingerprint when a rule changes', () => {

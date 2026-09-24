@@ -16,6 +16,8 @@ export const PROJECTION_DENIAL_CODES = [
   'PROJECTION_PREDICATE_TARGET_MISSING',
   'CONFLICTING_PROJECTION_RULES',
   'UNSUPPORTED_PROJECTION_PREDICATE',
+  'EMPTY_PROJECTION_RULE',
+  'INVALID_PROJECTION_THRESHOLD',
   'UNDECLARED_IMPACT_RISK',
 ] as const;
 
@@ -174,6 +176,19 @@ function ruleShape(rule: RiskProjectionRule): boolean {
   );
 }
 
+function materialThreshold(predicate: ProjectionPredicate): boolean {
+  const delta = predicate.deltaMinutes;
+  switch (predicate.kind) {
+    case 'ACTIVITY_START_DELTA_AT_MOST':
+    case 'ACTIVITY_END_DELTA_AT_MOST':
+      return delta >= -120 && delta <= -1;
+    case 'CALL_TIME_DELTA_AT_MOST':
+      return delta >= -90 && delta <= -1;
+    case 'BUFFER_BEFORE_AT_LEAST':
+      return delta >= 1 && delta <= 45;
+  }
+}
+
 function hasActivity(state: ShadowOperationalState, activityId: string): boolean {
   return readActivity(state, activityId) !== null;
 }
@@ -301,18 +316,21 @@ function validatePolicy(
   if (policy.schemaVersion !== RECOVERY_PROJECTION_SCHEMA_VERSION) {
     return 'PROJECTION_VERSION_MISMATCH';
   }
-  const seen = new Map<string, string>();
+  const seen = new Set<string>();
   for (const rule of policy.rules) {
     if (!ruleShape(rule)) {
       return 'UNSUPPORTED_PROJECTION_PREDICATE';
     }
-    const identity = JSON.stringify(canonicalRule(rule));
-    const existing = seen.get(rule.ruleId);
-    if (existing === undefined) {
-      seen.set(rule.ruleId, identity);
-    } else if (existing !== identity) {
+    if (rule.when.length === 0) {
+      return 'EMPTY_PROJECTION_RULE';
+    }
+    if (rule.when.some((predicate) => !materialThreshold(predicate))) {
+      return 'INVALID_PROJECTION_THRESHOLD';
+    }
+    if (seen.has(rule.ruleId)) {
       return 'DUPLICATE_PROJECTION_RULE';
     }
+    seen.add(rule.ruleId);
   }
   const liveRiskIds = new Set(evaluation.risks.map((risk) => risk.riskId));
   for (const rule of canonicalRecoveryProjection(policy).rules) {
