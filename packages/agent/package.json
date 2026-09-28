@@ -15,5 +15,8 @@
   ],
   "scripts": {
     "build": "tsc -b"
+  },
+  "dependencies": {
+    "@sceneready/intervention-engine": "0.0.0"
   }
 }
