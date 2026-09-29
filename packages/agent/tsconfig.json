@@ -6,5 +6,15 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../intervention-engine" }]
+  "references": [
+    { "path": "../domain" },
+    { "path": "../intervention-engine" },
+    { "path": "../production-graph" },
+    { "path": "../production-pack" },
+    { "path": "../readiness-engine" },
+    { "path": "../recovery-outcomes" },
+    { "path": "../recovery-ranking" },
+    { "path": "../shadow-simulation" },
+    { "path": "../solar-engine" }
+  ]
 }

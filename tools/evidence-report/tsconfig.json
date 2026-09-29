@@ -11,6 +11,7 @@
     { "path": "../../packages/evidence" },
     { "path": "../../packages/production-graph" },
     { "path": "../../packages/production-pack" },
-    { "path": "../../packages/readiness-engine" }
+    { "path": "../../packages/readiness-engine" },
+    { "path": "../../packages/agent" }
   ]
 }

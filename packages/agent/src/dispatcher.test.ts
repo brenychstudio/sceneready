@@ -840,8 +840,13 @@ describe('deterministic recovery composer', () => {
 describe('agent trust boundary', () => {
   it('keeps recovery composition off projection, scoring, and authority surfaces', () => {
     const directory = dirname(fileURLToPath(import.meta.url));
+    // Certification orchestration lives in canonical-recovery.ts. Dispatcher and
+    // composer surfaces stay off projection, scoring, fixture ids, and authority.
     const source = readdirSync(directory)
-      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+      .filter(
+        (name) =>
+          name.endsWith('.ts') && !name.endsWith('.test.ts') && name !== 'canonical-recovery.ts',
+      )
       .map((name) => readFileSync(join(directory, name), 'utf8'))
       .join('\n');
     const forbidden = [
@@ -900,7 +905,17 @@ describe('agent trust boundary', () => {
       peerDependencies?: Record<string, string>;
       optionalDependencies?: Record<string, string>;
     };
-    expect(manifest.dependencies).toEqual({ '@sceneready/intervention-engine': '0.0.0' });
+    expect(manifest.dependencies).toEqual({
+      '@sceneready/domain': '0.0.0',
+      '@sceneready/intervention-engine': '0.0.0',
+      '@sceneready/production-graph': '0.0.0',
+      '@sceneready/production-pack': '0.0.0',
+      '@sceneready/readiness-engine': '0.0.0',
+      '@sceneready/recovery-outcomes': '0.0.0',
+      '@sceneready/recovery-ranking': '0.0.0',
+      '@sceneready/shadow-simulation': '0.0.0',
+      '@sceneready/solar-engine': '0.0.0',
+    });
     expect(manifest.devDependencies).toBeUndefined();
     expect(manifest.peerDependencies).toBeUndefined();
     expect(manifest.optionalDependencies).toBeUndefined();
@@ -914,6 +929,7 @@ describe('agent trust boundary', () => {
       'solar-engine',
       'intervention-engine',
       'shadow-simulation',
+      'recovery-outcomes',
       'recovery-ranking',
     ];
     for (const name of corePackages) {

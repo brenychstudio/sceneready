@@ -63,3 +63,9 @@ export {
   type GroundingValidationRequest,
   type GroundingValidationResult,
 } from './grounding-validator.js';
+export {
+  certifyCanonicalRecovery,
+  CREATIVE_FIRST_PROFILE,
+  SR03_EVIDENCE_REPORT_SCHEMA,
+  type CanonicalRecoveryCertification,
+} from './canonical-recovery.js';

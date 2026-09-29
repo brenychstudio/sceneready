@@ -1,0 +1,506 @@
+{
+  "schemaVersion": "SR-03-EVIDENCE-REPORT-v1",
+  "fixtureVersion": "BCN-DEMO-v1",
+  "graphSchemaVersion": "SR-GRAPH-v1",
+  "policyVersion": "SR-POLICY-v1",
+  "scoringVersion": "SR-SCORE-v1",
+  "producers": {
+    "readinessImprovement": "shadowAssessment.readinessScore-liveAssessment.readinessScore",
+    "creativePreservation": "SR-CREATIVE-PRESERVATION-v1",
+    "scheduleStability": "SR-SCHEDULE-STABILITY-v1",
+    "logisticsImpact": "SR-LOGISTICS-IMPACT-v1",
+    "crewDisruption": "SR-CREW-DISRUPTION-v1",
+    "evidenceConfidence": "shadowAssessment.confidenceScore",
+    "newRiskIntroduced": "SR-NEW-RISK-INTRODUCED-v1"
+  },
+  "priorityProfile": {
+    "profileId": "CREATIVE-FIRST",
+    "tiers": [
+      { "metricIds": ["CREATIVE_PRESERVATION"] },
+      { "metricIds": ["READINESS_IMPROVEMENT"] },
+      { "metricIds": ["SCHEDULE_STABILITY"] },
+      { "metricIds": ["EVIDENCE_CONFIDENCE"] },
+      { "metricIds": ["LOGISTICS_IMPACT"] },
+      { "metricIds": ["CREW_DISRUPTION"] },
+      { "metricIds": ["NEW_RISK_INTRODUCED"] }
+    ]
+  },
+  "live": {
+    "readiness": 74,
+    "confidence": 96,
+    "status": "AT_RISK",
+    "certification": "CERTIFIED",
+    "creativePreservation": 59,
+    "staticEnvelopeQuality": 82
+  },
+  "options": [
+    {
+      "optionId": "OPTION-A",
+      "interventions": [
+        {
+          "kind": "SHIFT_ACTIVITY",
+          "activityId": "ACT-GOTHIC-SETUP",
+          "deltaMinutes": -25
+        },
+        {
+          "kind": "ADJUST_CALL_TIME",
+          "personId": "PERSON-MODEL",
+          "deltaMinutes": -25
+        },
+        {
+          "kind": "ADJUST_CALL_TIME",
+          "personId": "PERSON-HMU",
+          "deltaMinutes": -25
+        },
+        {
+          "kind": "ADJUST_CALL_TIME",
+          "personId": "PERSON-PHOTO-ASSISTANT",
+          "deltaMinutes": -25
+        },
+        {
+          "kind": "ADJUST_DEPARTURE",
+          "transferActivityId": "ACT-DEPART-GOTHIC",
+          "deltaMinutes": -20
+        }
+      ],
+      "schemaValid": true,
+      "policyValid": true,
+      "policyDenialCodes": [],
+      "feasible": true,
+      "feasibilityReasons": [],
+      "liveReadiness": 74,
+      "liveStatus": "AT_RISK",
+      "liveCertification": "CERTIFIED",
+      "shadowReadiness": 89,
+      "readinessImprovement": 15,
+      "liveConfidence": 96,
+      "shadowConfidence": 96,
+      "creativePreservation": 71,
+      "staticEnvelopeQuality": 82,
+      "scheduleStability": 72,
+      "logisticsImpact": "LOW",
+      "crewDisruption": "HIGH",
+      "evidenceConfidence": 96,
+      "newRiskIntroduced": "NONE",
+      "riskTransitions": [
+        {
+          "riskId": "RISK-GOTHIC-LOOK-03",
+          "incidentId": "INCIDENT-COMPOUND-DRIFT",
+          "subjectId": "ACT-GOTHIC-LOOK-03",
+          "beforeSeverity": "CRITICAL",
+          "afterSeverity": null
+        },
+        {
+          "riskId": "RISK-STUDIO-LOAD-IN",
+          "incidentId": "INCIDENT-COMPOUND-DRIFT",
+          "subjectId": "ACT-STUDIO-LOAD-IN",
+          "beforeSeverity": "MEDIUM",
+          "afterSeverity": "LOW"
+        }
+      ],
+      "shadowRisks": [
+        {
+          "riskId": "RISK-EIXAMPLE-LOOK-05",
+          "subjectId": "ACT-EIXAMPLE-LOOK-05",
+          "severity": "HIGH"
+        },
+        {
+          "riskId": "RISK-STUDIO-LOAD-IN",
+          "subjectId": "ACT-STUDIO-LOAD-IN",
+          "severity": "LOW"
+        }
+      ],
+      "crewEventCount": 5,
+      "logisticsEventCount": 1,
+      "operationalMutation": true,
+      "technicalShadowRevisionDelta": 1,
+      "simulationFingerprint": "dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f",
+      "shadowGraphFingerprint": "dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f",
+      "metrics": {
+        "readinessImprovement": 15,
+        "creativePreservation": 71,
+        "scheduleStability": 72,
+        "logisticsImpact": "LOW",
+        "crewDisruption": "HIGH",
+        "evidenceConfidence": 96,
+        "newRiskIntroduced": "NONE"
+      }
+    },
+    {
+      "optionId": "OPTION-B",
+      "interventions": [
+        {
+          "kind": "ADD_BUFFER",
+          "beforeActivityId": "ACT-EIXAMPLE-SETUP",
+          "minutes": 10
+        }
+      ],
+      "schemaValid": true,
+      "policyValid": true,
+      "policyDenialCodes": [],
+      "feasible": true,
+      "feasibilityReasons": [],
+      "liveReadiness": 74,
+      "liveStatus": "AT_RISK",
+      "liveCertification": "CERTIFIED",
+      "shadowReadiness": 74,
+      "readinessImprovement": 0,
+      "liveConfidence": 96,
+      "shadowConfidence": 96,
+      "creativePreservation": 59,
+      "staticEnvelopeQuality": 82,
+      "scheduleStability": 78,
+      "logisticsImpact": "NONE",
+      "crewDisruption": "NONE",
+      "evidenceConfidence": 96,
+      "newRiskIntroduced": "NONE",
+      "riskTransitions": [],
+      "shadowRisks": [
+        {
+          "riskId": "RISK-EIXAMPLE-LOOK-05",
+          "subjectId": "ACT-EIXAMPLE-LOOK-05",
+          "severity": "HIGH"
+        },
+        {
+          "riskId": "RISK-GOTHIC-LOOK-03",
+          "subjectId": "ACT-GOTHIC-LOOK-03",
+          "severity": "CRITICAL"
+        },
+        {
+          "riskId": "RISK-STUDIO-LOAD-IN",
+          "subjectId": "ACT-STUDIO-LOAD-IN",
+          "severity": "MEDIUM"
+        }
+      ],
+      "crewEventCount": 0,
+      "logisticsEventCount": 0,
+      "operationalMutation": true,
+      "technicalShadowRevisionDelta": 1,
+      "simulationFingerprint": "7dd7445f65d1694e8e6d63c8bd70173e8160ecc7610b460f68e8d884df8a60b7",
+      "shadowGraphFingerprint": "7dd7445f65d1694e8e6d63c8bd70173e8160ecc7610b460f68e8d884df8a60b7",
+      "metrics": {
+        "readinessImprovement": 0,
+        "creativePreservation": 59,
+        "scheduleStability": 78,
+        "logisticsImpact": "NONE",
+        "crewDisruption": "NONE",
+        "evidenceConfidence": 96,
+        "newRiskIntroduced": "NONE"
+      }
+    },
+    {
+      "optionId": "OPTION-C",
+      "interventions": [],
+      "schemaValid": true,
+      "policyValid": true,
+      "policyDenialCodes": [],
+      "feasible": true,
+      "feasibilityReasons": [],
+      "liveReadiness": 74,
+      "liveStatus": "AT_RISK",
+      "liveCertification": "CERTIFIED",
+      "shadowReadiness": 74,
+      "readinessImprovement": 0,
+      "liveConfidence": 96,
+      "shadowConfidence": 96,
+      "creativePreservation": 59,
+      "staticEnvelopeQuality": 82,
+      "scheduleStability": 100,
+      "logisticsImpact": "NONE",
+      "crewDisruption": "NONE",
+      "evidenceConfidence": 96,
+      "newRiskIntroduced": "NONE",
+      "riskTransitions": [],
+      "shadowRisks": [
+        {
+          "riskId": "RISK-EIXAMPLE-LOOK-05",
+          "subjectId": "ACT-EIXAMPLE-LOOK-05",
+          "severity": "HIGH"
+        },
+        {
+          "riskId": "RISK-GOTHIC-LOOK-03",
+          "subjectId": "ACT-GOTHIC-LOOK-03",
+          "severity": "CRITICAL"
+        },
+        {
+          "riskId": "RISK-STUDIO-LOAD-IN",
+          "subjectId": "ACT-STUDIO-LOAD-IN",
+          "severity": "MEDIUM"
+        }
+      ],
+      "crewEventCount": 0,
+      "logisticsEventCount": 0,
+      "operationalMutation": false,
+      "technicalShadowRevisionDelta": 1,
+      "simulationFingerprint": "03a7061e98187fd87d1fc854d17c5567b68fca67e44c0663d7cf997c7d8fb746",
+      "shadowGraphFingerprint": "03a7061e98187fd87d1fc854d17c5567b68fca67e44c0663d7cf997c7d8fb746",
+      "metrics": {
+        "readinessImprovement": 0,
+        "creativePreservation": 59,
+        "scheduleStability": 100,
+        "logisticsImpact": "NONE",
+        "crewDisruption": "NONE",
+        "evidenceConfidence": 96,
+        "newRiskIntroduced": "NONE"
+      }
+    }
+  ],
+  "legacyInvalidOptionB": {
+    "optionId": "LEGACY-INVALID-OPTION-B",
+    "interventions": [
+      {
+        "kind": "SHORTEN_ACTIVITY",
+        "activityId": "ACT-GOTHIC-LOOK-03",
+        "minutes": 20
+      },
+      {
+        "kind": "ADD_BUFFER",
+        "beforeActivityId": "ACT-EIXAMPLE-SETUP",
+        "minutes": 10
+      }
+    ],
+    "schemaValid": true,
+    "policyValid": false,
+    "rejectionCodes": ["DURATION_NOT_POSITIVE"],
+    "ranked": false
+  },
+  "ranking": {
+    "decision": "RECOMMEND",
+    "orderedOptions": [
+      {
+        "optionId": "OPTION-A",
+        "metrics": {
+          "readinessImprovement": 15,
+          "creativePreservation": 71,
+          "scheduleStability": 72,
+          "logisticsImpact": "LOW",
+          "crewDisruption": "HIGH",
+          "evidenceConfidence": 96,
+          "newRiskIntroduced": "NONE"
+        }
+      },
+      {
+        "optionId": "OPTION-C",
+        "metrics": {
+          "readinessImprovement": 0,
+          "creativePreservation": 59,
+          "scheduleStability": 100,
+          "logisticsImpact": "NONE",
+          "crewDisruption": "NONE",
+          "evidenceConfidence": 96,
+          "newRiskIntroduced": "NONE"
+        }
+      },
+      {
+        "optionId": "OPTION-B",
+        "metrics": {
+          "readinessImprovement": 0,
+          "creativePreservation": 59,
+          "scheduleStability": 78,
+          "logisticsImpact": "NONE",
+          "crewDisruption": "NONE",
+          "evidenceConfidence": 96,
+          "newRiskIntroduced": "NONE"
+        }
+      }
+    ],
+    "recommendedOptionId": "OPTION-A",
+    "escalationReason": null
+  },
+  "orderedOptionIds": ["OPTION-A", "OPTION-C", "OPTION-B"],
+  "optionAWinsOnCreativeTier": true,
+  "bcAuthorityTie": false,
+  "bcDistinguishingMetric": "SCHEDULE_STABILITY",
+  "rankingSafety": {
+    "noViablePlan": {
+      "decision": "ESCALATE",
+      "orderedOptions": [],
+      "recommendedOptionId": null,
+      "escalationReason": "NO_VIABLE_PLAN"
+    },
+    "insufficientEvidence": {
+      "decision": "ESCALATE",
+      "orderedOptions": [
+        {
+          "optionId": "NONCANON-LOW-EVIDENCE-A",
+          "metrics": {
+            "readinessImprovement": 0,
+            "creativePreservation": 99,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "LOW",
+            "evidenceConfidence": 59,
+            "newRiskIntroduced": "LOW"
+          }
+        },
+        {
+          "optionId": "NONCANON-LOW-EVIDENCE-B",
+          "metrics": {
+            "readinessImprovement": 0,
+            "creativePreservation": 10,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "LOW",
+            "evidenceConfidence": 10,
+            "newRiskIntroduced": "LOW"
+          }
+        }
+      ],
+      "recommendedOptionId": null,
+      "escalationReason": "INSUFFICIENT_EVIDENCE"
+    },
+    "tradeOff": {
+      "decision": "PRESENT_TRADE_OFF",
+      "orderedOptions": [
+        {
+          "optionId": "NONCANON-CALM",
+          "metrics": {
+            "readinessImprovement": 5,
+            "creativePreservation": 90,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "NONE",
+            "evidenceConfidence": 90,
+            "newRiskIntroduced": "LOW"
+          }
+        },
+        {
+          "optionId": "NONCANON-READY",
+          "metrics": {
+            "readinessImprovement": 40,
+            "creativePreservation": 90,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "HIGH",
+            "evidenceConfidence": 90,
+            "newRiskIntroduced": "LOW"
+          }
+        }
+      ],
+      "recommendedOptionId": null,
+      "escalationReason": "PRIORITY_CONFLICT"
+    },
+    "exactTie": {
+      "decision": "PRESENT_TRADE_OFF",
+      "orderedOptions": [
+        {
+          "optionId": "NONCANON-TIE-A",
+          "metrics": {
+            "readinessImprovement": 0,
+            "creativePreservation": 70,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "LOW",
+            "evidenceConfidence": 90,
+            "newRiskIntroduced": "LOW"
+          }
+        },
+        {
+          "optionId": "NONCANON-TIE-B",
+          "metrics": {
+            "readinessImprovement": 0,
+            "creativePreservation": 70,
+            "scheduleStability": 50,
+            "logisticsImpact": "LOW",
+            "crewDisruption": "LOW",
+            "evidenceConfidence": 90,
+            "newRiskIntroduced": "LOW"
+          }
+        }
+      ],
+      "recommendedOptionId": null,
+      "escalationReason": "PRIORITY_CONFLICT"
+    }
+  },
+  "grounding": {
+    "positive": {
+      "ok": true,
+      "data": {
+        "summary": "R2 readiness is 74. Option A shadow readiness is 89. Creative preservation moves from 59 to 71. Gothic Look 03 CRITICAL was removed. Eixample Look 05 remains HIGH. Option A crew disruption is HIGH. Creative-first ranking recommends OPTION-A.",
+        "claims": [
+          {
+            "claimId": "readiness-r2",
+            "text": "R2 readiness is 74.",
+            "references": ["EVIDENCE:R2-READINESS"]
+          },
+          {
+            "claimId": "readiness-shadow",
+            "text": "Option A shadow readiness is 89.",
+            "references": [
+              "SIMULATION:dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f"
+            ]
+          },
+          {
+            "claimId": "creative",
+            "text": "Creative preservation moves from 59 to 71.",
+            "references": [
+              "SIMULATION:dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f"
+            ]
+          },
+          {
+            "claimId": "gothic",
+            "text": "Gothic Look 03 CRITICAL was removed.",
+            "references": ["EVIDENCE:GOTHIC-LOOK-03", "GRAPH-REVISION:1"]
+          },
+          {
+            "claimId": "eixample",
+            "text": "Eixample Look 05 remains HIGH.",
+            "references": [
+              "SIMULATION:dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f"
+            ]
+          },
+          {
+            "claimId": "crew",
+            "text": "Option A crew disruption is HIGH.",
+            "references": [
+              "SIMULATION:dabf968c385f9889dcb00ef144d22688f87a604ca55b86ceb107ebdc6fd2cf0f"
+            ]
+          },
+          {
+            "claimId": "ranking",
+            "text": "Creative-first ranking recommends OPTION-A.",
+            "references": ["RANKING:CREATIVE-FIRST"]
+          }
+        ],
+        "recommendationOptionId": "OPTION-A",
+        "disclosedTradeOffs": []
+      }
+    },
+    "negative": {
+      "ok": false,
+      "issues": [
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-creative" },
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-crew" }
+      ],
+      "disposition": "REGENERATE_ONCE"
+    },
+    "negativeRejectedClaims": [
+      "Creative preservation becomes 95.",
+      "Option A crew disruption is MEDIUM."
+    ],
+    "initialInvalid": {
+      "ok": false,
+      "issues": [
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-creative" },
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-crew" }
+      ],
+      "disposition": "REGENERATE_ONCE"
+    },
+    "retryInvalid": {
+      "ok": false,
+      "issues": [
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-creative" },
+        { "code": "UNSUPPORTED_CLAIM", "subject": "superseded-crew" }
+      ],
+      "disposition": "USE_DETERMINISTIC_EXPLANATION"
+    },
+    "deterministicExplanationAccepted": true
+  },
+  "noModelInvocation": true,
+  "liveGraphFingerprint": "f3ff5428b0f548e7a41040219ee3b9e0c65727e9bbffadd66788a18ccae35ff9",
+  "liveGraphFingerprintUnchanged": true,
+  "liveGraphSerializedUnchanged": true,
+  "optionCTechnicalShadowIdentity": true,
+  "optionCOperationalNoChange": true,
+  "fingerprintsRepeatStable": true
+}
