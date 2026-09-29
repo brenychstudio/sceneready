@@ -35,3 +35,31 @@ export {
   type RecoveryPlanningSuccess,
 } from './dispatcher.js';
 export { DeterministicRecoveryComposer } from './deterministic-composer.js';
+export {
+  GROUNDING_ISSUE_CODES,
+  GROUNDING_LIMITS,
+  GROUNDING_RANKING_DECISIONS,
+  GROUNDING_REFERENCE_KINDS,
+  GroundedClaimSchema,
+  GroundedReasoningResultSchema,
+  graphRevisionReferenceId,
+  type GroundedClaim,
+  type GroundedReasoningResult,
+  type GroundingContext,
+  type GroundingIssue,
+  type GroundingIssueCode,
+  type GroundingRanking,
+  type GroundingRankingDecision,
+  type GroundingReference,
+  type GroundingReferenceKind,
+  type GroundingStatementTemplate,
+} from './grounding-schema.js';
+export {
+  GROUNDING_ATTEMPTS,
+  GROUNDING_DISPOSITIONS,
+  validateGroundedReasoning,
+  type GroundingAttempt,
+  type GroundingDisposition,
+  type GroundingValidationRequest,
+  type GroundingValidationResult,
+} from './grounding-validator.js';
