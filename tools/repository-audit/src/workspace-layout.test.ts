@@ -21,6 +21,7 @@ const LOCKED_WORKSPACES = [
   ['packages/solar-engine', '@sceneready/solar-engine'],
   ['packages/intervention-engine', '@sceneready/intervention-engine'],
   ['packages/shadow-simulation', '@sceneready/shadow-simulation'],
+  ['packages/recovery-outcomes', '@sceneready/recovery-outcomes'],
   ['packages/recovery-ranking', '@sceneready/recovery-ranking'],
   ['packages/agent', '@sceneready/agent'],
   ['packages/mcp-human-authority', '@sceneready/mcp-human-authority'],

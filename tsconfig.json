@@ -18,6 +18,7 @@
     { "path": "packages/production-graph" },
     { "path": "packages/production-pack" },
     { "path": "packages/readiness-engine" },
+    { "path": "packages/recovery-outcomes" },
     { "path": "packages/recovery-ranking" },
     { "path": "packages/replay" },
     { "path": "packages/shadow-simulation" },

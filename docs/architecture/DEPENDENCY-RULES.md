@@ -28,6 +28,7 @@ The following workspace packages are locked as pure:
 - `@sceneready/solar-engine`
 - `@sceneready/intervention-engine`
 - `@sceneready/shadow-simulation`
+- `@sceneready/recovery-outcomes`
 - `@sceneready/recovery-ranking`
 - `@sceneready/mcp-human-authority`
 - `@sceneready/communications`
