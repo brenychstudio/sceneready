@@ -18,6 +18,7 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@sceneready/intervention-engine": "0.0.0",
     "@sceneready/mcp-human-authority": "0.0.0"
   }
 }

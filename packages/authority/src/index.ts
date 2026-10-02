@@ -36,6 +36,26 @@ export {
 export { applyConditionalRevision, type ConditionalRevisionInput } from './mutation-lane.js';
 export { applyApprovedProductionRevision, type ApprovedRevisionInput } from './revision-service.js';
 export {
+  COMPENSATION_DENIAL_REASONS,
+  type CompensationAudienceInput,
+  type CompensationBindContext,
+  type CompensationDenialReason,
+} from './compensation.js';
+export {
+  prepareCompensatingProposal,
+  type CompensationBinder,
+  type CompensationBindResult,
+  type CompensatingProposal,
+  type PrepareCompensatingProposalInput,
+  type PrepareCompensatingProposalResult,
+} from './forward-recovery.js';
+export {
+  REVERSIBILITY_DISCLOSURE_KIND,
+  SEND_CORRECTIVE_NOTIFICATION,
+  type CorrectiveNotificationEffect,
+  type ReversibilityDisclosure,
+} from './reversibility.js';
+export {
   MUTATION_DENIAL_REASONS,
   type ApprovedRevisionCommand,
   type ApprovedRevisionResult,
