@@ -1,0 +1,163 @@
+{
+  "reportVersion": "SR-04-CERTIFICATION-v1",
+  "identity": {
+    "executionCoreCommit": "963be6d0825713505a3a3144c11faeb9d6e827d3",
+    "certificationBaseCommit": "963be6d0825713505a3a3144c11faeb9d6e827d3"
+  },
+  "policies": {
+    "authorityRoleNamespace": "SR-AUTHORITY-ROLE-NAMESPACE-v1.0",
+    "communicationAudience": "SR-COMMUNICATION-AUDIENCE-v1.0"
+  },
+  "invariants": [
+    { "id": "EXPLICIT_APPROVAL_REQUIRED", "pass": true },
+    { "id": "AMBIGUOUS_SPEECH_CREATES_NO_AUTHORITY", "pass": true },
+    { "id": "APPROVAL_BINDS_FINGERPRINT", "pass": true },
+    { "id": "APPROVAL_BINDS_PAYLOADS", "pass": true },
+    { "id": "APPROVAL_BINDS_REVISIONS", "pass": true },
+    { "id": "SINGLE_USE", "pass": true },
+    { "id": "PRODUCTION_SCOPED", "pass": true },
+    { "id": "NAMESPACE_SCOPED", "pass": true },
+    { "id": "ROLE_NAMESPACE_MATRIX", "pass": true },
+    { "id": "ONE_MUTATION_LANE", "pass": true },
+    { "id": "ATOMIC_COMMIT", "pass": true },
+    { "id": "IDEMPOTENT_DELIVERY", "pass": true },
+    { "id": "DELIVERED_IS_NOT_CONFIRMED", "pass": true },
+    { "id": "PARTIAL_COMPLETION_TRUTHFUL", "pass": true },
+    { "id": "CANNOT_COMPLY_BLOCKS_AND_SIGNALS", "pass": true },
+    { "id": "FORWARD_RECOVERY_ONLY", "pass": true },
+    { "id": "HISTORY_IMMUTABLE", "pass": true },
+    { "id": "COMMUNICATIONS_DO_NOT_MUTATE_PRODUCTION", "pass": true },
+    { "id": "NO_HIDDEN_CLOCK_OR_NETWORK", "pass": true }
+  ],
+  "invariantCount": 19,
+  "roleNamespace": [
+    { "role": "PRODUCTION_LEAD", "namespace": "LIVE", "decision": "ALLOW" },
+    { "role": "PRODUCTION_LEAD", "namespace": "REPLAY", "decision": "DENY" },
+    { "role": "DEMO_PRODUCTION_LEAD", "namespace": "LIVE", "decision": "DENY" },
+    {
+      "role": "DEMO_PRODUCTION_LEAD",
+      "namespace": "REPLAY",
+      "decision": "ALLOW"
+    },
+    { "role": "ASSISTANT", "namespace": "LIVE", "decision": "DENY" },
+    { "role": "ASSISTANT", "namespace": "REPLAY", "decision": "DENY" }
+  ],
+  "ambiguousSpeech": {
+    "status": "NOT_APPROVED",
+    "reason": "NO_EXPLICIT_APPROVAL",
+    "token": null,
+    "signatures": 0
+  },
+  "attacks": [
+    {
+      "id": "ASSISTANT_ROLE",
+      "status": "DENIED",
+      "reason": "ROLE_NOT_AUTHORIZED",
+      "mutations": 0,
+      "executionReason": "TOKEN_REJECTED",
+      "pass": true
+    },
+    {
+      "id": "CROSS_PRODUCTION",
+      "status": "DENIED",
+      "reason": "PRODUCTION_SCOPE_MISMATCH",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "CROSS_NAMESPACE",
+      "status": "DENIED",
+      "reason": "AUTHORITY_NAMESPACE_MISMATCH",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "TAMPERED_FINGERPRINT",
+      "status": "DENIED",
+      "reason": "PROPOSAL_FINGERPRINT_MISMATCH",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "EXPIRED_TOKEN",
+      "status": "DENIED",
+      "reason": "APPROVAL_EXPIRED",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "REPLAYED_TOKEN",
+      "status": "DENIED",
+      "reason": "APPROVAL_ALREADY_CONSUMED",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "GRAPH_DRIFT",
+      "status": "DENIED",
+      "reason": "BASE_REVISION_STALE",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    },
+    {
+      "id": "PAYLOAD_DRIFT",
+      "status": "DENIED",
+      "reason": "PROPOSAL_FINGERPRINT_MISMATCH",
+      "mutations": 0,
+      "executionReason": null,
+      "pass": true
+    }
+  ],
+  "attackCount": 8,
+  "successfulBypasses": 0,
+  "atomicTransaction": {
+    "pass": true,
+    "appliedRevision": 15,
+    "ledgerEvents": 1,
+    "consumedTokens": 1,
+    "outboxJobs": 4,
+    "rollbackPass": true
+  },
+  "singleUse": { "pass": true, "reason": "APPROVAL_ALREADY_CONSUMED" },
+  "staleDrift": {
+    "pass": true,
+    "graphReason": "BASE_REVISION_STALE",
+    "productionReason": "BASE_REVISION_STALE"
+  },
+  "canonical": {
+    "outboxCount": 4,
+    "criticalCount": 3,
+    "informationalCount": 1,
+    "faultDelivery": "3/4",
+    "recoveredDelivery": "4/4",
+    "criticalAcknowledgements": "3/3",
+    "partialCompletionPass": true,
+    "idempotentRetryPass": true,
+    "deliveredIsNotConfirmed": true,
+    "cannotComplyPass": true,
+    "cannotComplyRequiresRecompute": true,
+    "forwardRecoveryPass": true,
+    "immutableHistoryPass": true,
+    "historyEvents": 1,
+    "compensationBaseProductionRevision": 15,
+    "compensationFingerprintBound": true
+  },
+  "evidence": {
+    "tests": [
+      "packages/authority/src/security-invariants.test.ts",
+      "packages/communications/src/failure-recovery.test.ts",
+      "tools/evidence-report/src/sr04-report.test.ts"
+    ],
+    "documents": [
+      "docs/architecture/HUMAN-AUTHORITY.md",
+      "docs/architecture/EXECUTION-SEMANTICS.md",
+      "docs/submission/CLAIM-TO-EVIDENCE.md"
+    ]
+  }
+}

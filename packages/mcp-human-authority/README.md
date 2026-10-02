@@ -32,3 +32,15 @@ secret in this package. Signing only packages claims that a caller has already a
 The caller owns identity, authentication, authorization, challenge storage, token storage,
 and any later check that the fingerprint still matches the proposal presented for execution.
 Approval is meaningful only when that exact fingerprint matches.
+
+## SceneReady consumption
+
+SceneReady calls this package from `@sceneready/authority` and `@sceneready/communications`.
+The authority package opens a challenge, accepts only the explicit approval intent, and later
+verifies the signed token inside the production mutation lane. The communications package binds
+recipient payloads before that fingerprint is hashed. Those callers own sessions, role policy,
+token consumption, and execution.
+
+This package still does not authenticate a person, choose a role, store a token, approve, or
+apply a production revision. There is no production signer here. See
+`docs/architecture/HUMAN-AUTHORITY.md`.

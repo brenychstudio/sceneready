@@ -12,6 +12,9 @@
     { "path": "../../packages/production-graph" },
     { "path": "../../packages/production-pack" },
     { "path": "../../packages/readiness-engine" },
-    { "path": "../../packages/agent" }
+    { "path": "../../packages/agent" },
+    { "path": "../../packages/mcp-human-authority" },
+    { "path": "../../packages/communications" },
+    { "path": "../../packages/authority" }
   ]
 }
