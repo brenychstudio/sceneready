@@ -27,9 +27,18 @@ export {
   type AuthoritySessionRole,
 } from './session.js';
 export { InMemoryAuthoritativeState } from './in-memory-state.js';
+export {
+  deriveDurableOutboxJobs,
+  durableOutboxIdentity,
+  type DurableOutboxJob,
+  type RevisionAppliedEvent,
+} from './ledger.js';
 export { applyConditionalRevision, type ConditionalRevisionInput } from './mutation-lane.js';
+export { applyApprovedProductionRevision, type ApprovedRevisionInput } from './revision-service.js';
 export {
   MUTATION_DENIAL_REASONS,
+  type ApprovedRevisionCommand,
+  type ApprovedRevisionResult,
   type AuthoritativeNamespace,
   type AuthoritativeScope,
   type AuthoritativeSnapshot,

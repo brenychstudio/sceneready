@@ -1,5 +1,7 @@
 import type { ApprovalSigner, AuthorityProposal } from '@sceneready/mcp-human-authority';
 
+import type { DurableOutboxJob, RevisionAppliedEvent } from './ledger.js';
+
 export const AUTHORITATIVE_NAMESPACES = ['LIVE', 'REPLAY'] as const;
 
 export type AuthoritativeNamespace = (typeof AUTHORITATIVE_NAMESPACES)[number];
@@ -26,6 +28,10 @@ export const MUTATION_DENIAL_REASONS = [
   'APPROVAL_NOT_SINGLE_USE',
   'AUTHORITY_NAMESPACE_MISMATCH',
   'BASE_REVISION_STALE',
+  'INVALID_EXECUTION_IDENTITY',
+  'LEDGER_EVENT_ID_REUSED',
+  'OUTBOX_IDENTITY_REUSED',
+  'OUTBOX_PAYLOAD_INVALID',
   'POLICY_VERSION_MISMATCH',
   'PRODUCTION_SCOPE_MISMATCH',
   'PROPOSAL_FINGERPRINT_MISMATCH',
@@ -64,7 +70,37 @@ export type ConditionalRevisionResult =
       readonly tokenId: null;
     };
 
+export interface ApprovedRevisionCommand extends ConditionalRevisionCommand {
+  readonly executionId: string;
+  readonly ledgerEventId: string;
+}
+
+export type ApprovedRevisionResult =
+  | {
+      readonly status: 'APPLIED';
+      readonly reason: null;
+      readonly productionRevision: number;
+      readonly graphRevision: number;
+      readonly productionState: unknown;
+      readonly tokenId: string;
+      readonly ledgerEvent: RevisionAppliedEvent;
+      readonly outboxJobs: readonly DurableOutboxJob[];
+    }
+  | {
+      readonly status: 'DENIED';
+      readonly reason: MutationDenialReason;
+      readonly productionRevision: null;
+      readonly graphRevision: null;
+      readonly productionState: null;
+      readonly tokenId: null;
+      readonly ledgerEvent: null;
+      readonly outboxJobs: readonly [];
+    };
+
 export interface AuthoritativeStateRepository {
   read(scope: AuthoritativeScope): Promise<AuthoritativeSnapshot | null>;
   applyConditionalRevision(command: ConditionalRevisionCommand): Promise<ConditionalRevisionResult>;
+  applyApprovedProductionRevision(
+    command: ApprovedRevisionCommand,
+  ): Promise<ApprovedRevisionResult>;
 }

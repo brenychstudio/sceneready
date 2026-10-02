@@ -36,6 +36,15 @@ export {
   type PayloadInspection,
 } from './message-schema.js';
 export {
+  ACKNOWLEDGEMENT_REQUIREMENTS,
+  acknowledgementRequirementFor,
+  deriveOutboxJobs,
+  outboxIdentity,
+  type AcknowledgementRequirement,
+  type OutboxJob,
+  type OutboxPlan,
+} from './outbox.js';
+export {
   PROPOSAL_COMMUNICATION_ISSUE_CODES,
   bindProposalCommunications,
   type BindIssueCode,

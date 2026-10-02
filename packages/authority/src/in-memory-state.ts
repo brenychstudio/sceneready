@@ -4,8 +4,15 @@ import {
   readAuthoritativeScope,
   readAuthoritativeSnapshot,
 } from './concurrency.js';
-import { AuthorityBoundaryError } from './session.js';
+import {
+  deriveDurableOutboxJobs,
+  type DurableOutboxJob,
+  type RevisionAppliedEvent,
+} from './ledger.js';
+import { AuthorityBoundaryError, readCanonicalInstant } from './session.js';
 import type {
+  ApprovedRevisionCommand,
+  ApprovedRevisionResult,
   AuthoritativeScope,
   AuthoritativeSnapshot,
   AuthoritativeStateRepository,
@@ -17,6 +24,13 @@ import type {
 interface StoredProduction {
   readonly snapshot: AuthoritativeSnapshot;
   readonly consumedTokenIds: ReadonlySet<string>;
+  readonly ledger: readonly RevisionAppliedEvent[];
+  readonly outbox: readonly DurableOutboxJob[];
+}
+
+interface CommitEffects {
+  readonly ledgerEvent: RevisionAppliedEvent | null;
+  readonly outboxJobs: readonly DurableOutboxJob[];
 }
 
 function fail(code: string, message: string): never {
@@ -68,6 +82,21 @@ function denial(reason: MutationDenialReason): ConditionalRevisionResult {
   });
 }
 
+const NO_OUTBOX_JOBS: readonly [] = Object.freeze([]);
+
+function denyApproved(reason: MutationDenialReason): ApprovedRevisionResult {
+  return Object.freeze({
+    status: 'DENIED',
+    reason,
+    productionRevision: null,
+    graphRevision: null,
+    productionState: null,
+    tokenId: null,
+    ledgerEvent: null,
+    outboxJobs: NO_OUTBOX_JOBS,
+  });
+}
+
 export class InMemoryAuthoritativeState implements AuthoritativeStateRepository {
   private readonly records = new Map<string, StoredProduction>();
   private readonly tails = new Map<string, Promise<void>>();
@@ -95,6 +124,8 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
         Object.freeze({
           snapshot: frozen,
           consumedTokenIds: new Set<string>(),
+          ledger: Object.freeze([]),
+          outbox: Object.freeze([]),
         }),
       );
     });
@@ -125,6 +156,8 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
             graphRevision,
           }),
           consumedTokenIds: stored.consumedTokenIds,
+          ledger: stored.ledger,
+          outbox: stored.outbox,
         }),
       );
     });
@@ -136,6 +169,89 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
     return this.exclusive(key, async () => {
       const stored = this.records.get(key);
       return Object.freeze(stored === undefined ? [] : [...stored.consumedTokenIds]);
+    });
+  }
+
+  async readLedger(scope: AuthoritativeScope): Promise<readonly RevisionAppliedEvent[]> {
+    const read = readAuthoritativeScope(scope);
+    const key = authoritativeScopeKey(read);
+    return this.exclusive(key, async () => this.records.get(key)?.ledger ?? Object.freeze([]));
+  }
+
+  async readOutbox(scope: AuthoritativeScope): Promise<readonly DurableOutboxJob[]> {
+    const read = readAuthoritativeScope(scope);
+    const key = authoritativeScopeKey(read);
+    return this.exclusive(key, async () => this.records.get(key)?.outbox ?? Object.freeze([]));
+  }
+
+  async applyApprovedProductionRevision(
+    command: ApprovedRevisionCommand,
+  ): Promise<ApprovedRevisionResult> {
+    const scope = readAuthoritativeScope(command.scope);
+    const key = authoritativeScopeKey(scope);
+    return this.exclusive(key, async () => {
+      const decision = await authorizeMutation({ ...command, scope });
+      if (!decision.ok) {
+        return denyApproved(decision.reason);
+      }
+      if (
+        typeof command.executionId !== 'string' ||
+        command.executionId.length === 0 ||
+        typeof command.ledgerEventId !== 'string' ||
+        command.ledgerEventId.length === 0
+      ) {
+        return denyApproved('INVALID_EXECUTION_IDENTITY');
+      }
+      const planned = deriveDurableOutboxJobs(
+        command.executionId,
+        command.proposal.notificationPayloads,
+      );
+      if (!planned.ok) {
+        return denyApproved(planned.reason);
+      }
+      const productionRevision = decision.claims.baseProductionRevision + 1;
+      if (!Number.isSafeInteger(productionRevision)) {
+        fail('INVALID_REVISION', 'production revision cannot advance past the safe integer range');
+      }
+      const ledgerEvent = Object.freeze({
+        ledgerEventId: command.ledgerEventId,
+        kind: 'REVISION_APPLIED' as const,
+        executionId: command.executionId,
+        accountId: scope.accountId,
+        productionId: scope.productionId,
+        authorityNamespace: scope.authorityNamespace,
+        proposalId: decision.claims.proposalId,
+        proposalFingerprint: decision.claims.proposalFingerprint,
+        tokenId: decision.claims.tokenId,
+        previousProductionRevision: decision.claims.baseProductionRevision,
+        productionRevision,
+        graphRevision: decision.claims.baseGraphRevision,
+        appliedAt: readCanonicalInstant(command.now),
+      });
+      const committed = this.commitUnlocked(
+        key,
+        scope,
+        {
+          expectedProductionRevision: decision.claims.baseProductionRevision,
+          expectedGraphRevision: decision.claims.baseGraphRevision,
+          tokenId: decision.claims.tokenId,
+          nextProductionState: command.nextProductionState,
+        },
+        { ledgerEvent, outboxJobs: planned.jobs },
+      );
+      if (committed.status === 'DENIED') {
+        return denyApproved(committed.reason);
+      }
+      return Object.freeze({
+        status: 'APPLIED',
+        reason: null,
+        productionRevision: committed.productionRevision,
+        graphRevision: committed.graphRevision,
+        productionState: committed.productionState,
+        tokenId: committed.tokenId,
+        ledgerEvent,
+        outboxJobs: planned.jobs,
+      });
     });
   }
 
@@ -167,6 +283,7 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
       readonly tokenId: string;
       readonly nextProductionState: unknown;
     },
+    effects: CommitEffects = { ledgerEvent: null, outboxJobs: [] },
   ): ConditionalRevisionResult {
     if (typeof commit.tokenId !== 'string' || commit.tokenId.length === 0) {
       fail('INVALID_TOKEN', 'tokenId must be a non-empty string');
@@ -178,11 +295,6 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
       commit.expectedGraphRevision < 0
     ) {
       fail('INVALID_REVISION', 'expected revisions must be non-negative safe integers');
-    }
-    if (this.commitFailure !== null) {
-      const error = this.commitFailure;
-      this.commitFailure = null;
-      throw error;
     }
     const stored = this.records.get(key);
     if (stored === undefined) {
@@ -208,6 +320,21 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
     if (!Number.isSafeInteger(productionRevision)) {
       fail('INVALID_REVISION', 'production revision cannot advance past the safe integer range');
     }
+    if (
+      effects.ledgerEvent !== null &&
+      stored.ledger.some((event) => event.ledgerEventId === effects.ledgerEvent?.ledgerEventId)
+    ) {
+      return denial('LEDGER_EVENT_ID_REUSED');
+    }
+    const existingJobIds = new Set(stored.outbox.map((job) => job.idempotencyKey));
+    if (effects.outboxJobs.some((job) => existingJobIds.has(job.idempotencyKey))) {
+      return denial('OUTBOX_IDENTITY_REUSED');
+    }
+    if (this.commitFailure !== null) {
+      const error = this.commitFailure;
+      this.commitFailure = null;
+      throw error;
+    }
     const nextState = cloneAuthoritativeState(commit.nextProductionState);
     const consumedTokenIds = new Set(stored.consumedTokenIds);
     consumedTokenIds.add(commit.tokenId);
@@ -224,6 +351,14 @@ export class InMemoryAuthoritativeState implements AuthoritativeStateRepository 
       Object.freeze({
         snapshot,
         consumedTokenIds,
+        ledger:
+          effects.ledgerEvent === null
+            ? stored.ledger
+            : Object.freeze([...stored.ledger, effects.ledgerEvent]),
+        outbox:
+          effects.outboxJobs.length === 0
+            ? stored.outbox
+            : Object.freeze([...stored.outbox, ...effects.outboxJobs]),
       }),
     );
     return Object.freeze({
