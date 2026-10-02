@@ -36,6 +36,19 @@ export {
   type PayloadInspection,
 } from './message-schema.js';
 export {
+  ACKNOWLEDGEMENT_STATES,
+  applyAcknowledgement,
+  type AcknowledgementState,
+  type AcknowledgementUpdate,
+  type TrackedNotification,
+} from './acknowledgement.js';
+export {
+  SandboxNotificationTracker,
+  type DeliveryOutcome,
+  type SandboxDeliveryAdapter,
+} from './delivery.js';
+export { evaluateReceipt, type ExecutionReceipt } from './receipt.js';
+export {
   ACKNOWLEDGEMENT_REQUIREMENTS,
   acknowledgementRequirementFor,
   deriveOutboxJobs,
