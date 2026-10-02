@@ -26,3 +26,15 @@ export {
   type AuthoritySessionNamespace,
   type AuthoritySessionRole,
 } from './session.js';
+export { InMemoryAuthoritativeState } from './in-memory-state.js';
+export { applyConditionalRevision, type ConditionalRevisionInput } from './mutation-lane.js';
+export {
+  MUTATION_DENIAL_REASONS,
+  type AuthoritativeNamespace,
+  type AuthoritativeScope,
+  type AuthoritativeSnapshot,
+  type AuthoritativeStateRepository,
+  type ConditionalRevisionCommand,
+  type ConditionalRevisionResult,
+  type MutationDenialReason,
+} from './state-ports.js';
