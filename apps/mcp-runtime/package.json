@@ -16,5 +16,12 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1146.0",
+    "@aws-sdk/client-s3": "3.1146.0",
+    "@aws-sdk/lib-dynamodb": "3.1146.0",
+    "@sceneready/authority": "0.0.0",
+    "@sceneready/mcp-human-authority": "0.0.0"
   }
 }
