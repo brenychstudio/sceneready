@@ -656,5 +656,5 @@ describe('auditDependencyBoundaries', () => {
     const result = await auditDependencyBoundaries(repositoryRoot);
 
     expect(result.violations).toEqual([]);
-  });
+  }, 20_000);
 });

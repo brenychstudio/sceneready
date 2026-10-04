@@ -23,14 +23,14 @@ const MANDATORY_COMMANDS = [
   'npm run audit:public-boundary',
   'npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts',
   'npm ls --all',
-  'npm audit --audit-level=high',
+  'npm run audit:security',
 ] as const;
 
 const SECURITY_COMMANDS = [
   'npm ci',
   'npm run audit:public-boundary',
   'npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts',
-  'npm audit --audit-level=high',
+  'npm run audit:security',
   'npm sbom --sbom-format=cyclonedx > sceneready-sbom.cdx.json',
 ] as const;
 
@@ -44,7 +44,7 @@ const RELEASE_AUDIT_COMMANDS = [
   'npm run build',
   'npm run audit:public-boundary',
   'npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts',
-  'npm audit --audit-level=high',
+  'npm run audit:security',
   'npm sbom --sbom-format=cyclonedx > sceneready-sbom.cdx.json',
 ] as const;
 
@@ -353,7 +353,7 @@ describe('security workflow contract', () => {
     expect(source).toMatch(/^\s+cache-dependency-path:\s+package-lock\.json\s*$/m);
   });
 
-  it('runs public-boundary, dependency-boundary, npm audit, and CycloneDX SBOM commands', () => {
+  it('runs public-boundary, dependency-boundary, security gate, and CycloneDX SBOM commands', () => {
     const commands = runCommands(readWorkflow(securityWorkflowPath));
     expect(commands).toEqual(expect.arrayContaining([...SECURITY_COMMANDS]));
   });

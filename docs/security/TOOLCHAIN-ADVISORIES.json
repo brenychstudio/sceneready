@@ -1,0 +1,22 @@
+{
+  "policyVersion": "SR-SECURITY-AUDIT-POLICY-v1.1",
+  "status": "APPROVED_TEMPORARY_UPSTREAM_EXCEPTION",
+  "scope": "BUILD_TOOLCHAIN_ONLY",
+  "advisories": [
+    {
+      "package": "brace-expansion",
+      "installedVersion": "5.0.9",
+      "dependencyPath": "node_modules/aws-cdk-lib/node_modules/brace-expansion",
+      "upstreamPackage": "aws-cdk-lib",
+      "upstreamVersion": "2.272.0",
+      "advisoryIds": ["GHSA-6j4f-fj2g-mc7p", "GHSA-q2hr-2g5m-vwhr", "GHSA-qhr7-859c-m2p7"],
+      "severity": "high",
+      "reason": "Official aws-cdk-lib@2.272.0 publishes brace-expansion@5.0.9 inside its tarball. npm audit fix reports that bundled copy cannot be replaced. The package is a devDependency of @sceneready/infrastructure-cdk only, and the MCP runtime image does not contain it.",
+      "runtimeReachable": false,
+      "officialFixAvailable": false,
+      "firstObserved": "2026-10-04",
+      "reviewRule": "Every security-audit run must match this exact package, installed version, dependency path, upstream package, upstream version, and advisory set. Any other High or any Critical fails closed.",
+      "expiryRule": "Fail closed with UPSTREAM_PATCH_AVAILABLE when the newest official aws-cdk-lib release no longer bundles brace-expansion in the affected range 4.0.0 through 5.0.11. Do not auto-upgrade in CI."
+    }
+  ]
+}

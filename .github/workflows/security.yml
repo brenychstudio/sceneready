@@ -39,8 +39,8 @@ jobs:
       - name: Audit dependency boundaries
         run: npx vitest run tools/repository-audit/src/dependency-boundaries.test.ts
 
-      - name: Audit npm vulnerabilities
-        run: npm audit --audit-level=high
+      - name: Run runtime and toolchain security gate
+        run: npm run audit:security
 
       - name: Generate CycloneDX SBOM
         run: npm sbom --sbom-format=cyclonedx > sceneready-sbom.cdx.json
@@ -57,5 +57,13 @@ jobs:
         with:
           name: sceneready-security-evidence
           path: sceneready-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload raw npm audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneready-npm-audit
+          path: artifacts/local/sr05-npm-audit.json
           if-no-files-found: error
           retention-days: 14

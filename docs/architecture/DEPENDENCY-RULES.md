@@ -193,8 +193,9 @@ in repository source:
 
 - `.github/workflows/ci.yml` — pull-request and `main` strict validation
 - `.github/workflows/security.yml` — public-boundary and dependency-boundary
-  checks, `npm audit --audit-level=high`, CycloneDX SBOM generation and
-  validation, and the `sceneready-security-evidence` baseline security artifact
+  checks, the SR-SECURITY-AUDIT-POLICY-v1.1 gate (`npm run audit:security`),
+  CycloneDX SBOM generation and validation, and the
+  `sceneready-security-evidence` baseline security artifact
 - `.github/workflows/release-audit.yml` — manual `workflow_dispatch` baseline
   build and security certification only
 

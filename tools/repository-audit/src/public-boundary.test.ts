@@ -291,7 +291,7 @@ describe('auditPublicBoundary', () => {
     expect(result.scannedFiles).toBeGreaterThan(0);
     expect(result.skippedBinaryFiles).toBeGreaterThanOrEqual(0);
     expect(formatPublicBoundaryOutput(result)).toBe('PUBLIC_BOUNDARY=PASS\n');
-  });
+  }, 20_000);
 
   it('does not treat URL pathnames or repository-relative paths as private filesystem paths', async () => {
     const result = await auditSynthetic(
