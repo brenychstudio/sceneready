@@ -5,16 +5,22 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
     }
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/src/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc -b",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.272.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1144.0"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "app": "npx tsx bin/sceneready.ts",
+  "context": {
+    "environment": "DEV"
+  }
+}
