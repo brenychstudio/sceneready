@@ -914,42 +914,101 @@ async function inspectOfficialUpstream(
   };
 }
 
-const IMAGE_INSPECTOR = [
-  "const fs = require('node:fs');",
-  "const path = require('node:path');",
-  "const skip = new Set(['proc', 'sys', 'dev']);",
-  'const found = { awsCdkLib: [], brace: [] };',
-  'function walk(dir) {',
-  '  let entries;',
-  '  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }',
-  '  for (const entry of entries) {',
-  "    if (dir === '/' && skip.has(entry.name)) continue;",
-  '    const full = path.join(dir, entry.name);',
-  '    if (entry.isDirectory()) {',
-  "      if (entry.name === 'aws-cdk-lib') found.awsCdkLib.push(full);",
-  '      walk(full);',
-  "    } else if (entry.isFile() && entry.name === 'package.json' && path.basename(dir) === 'brace-expansion') {",
-  '      try {',
-  "        const parsed = JSON.parse(fs.readFileSync(full, 'utf8'));",
-  "        found.brace.push({ path: full, version: typeof parsed.version === 'string' ? parsed.version : 'UNREADABLE' });",
-  '      } catch {',
-  "        found.brace.push({ path: full, version: 'UNREADABLE' });",
-  '      }',
-  '    }',
-  '  }',
-  '}',
-  "walk('/');",
-  'process.stdout.write(JSON.stringify(found));',
-].join('\n');
-
 interface ImageInventory {
   readonly awsCdkLibPaths: readonly string[];
   readonly braceExpansion: readonly { readonly path: string; readonly version: string }[];
   readonly vulnerableBracePaths: readonly string[];
 }
 
-async function inspectRuntimeImage(root: string): Promise<ImageInventory> {
-  const buildCode = await runInherit(
+export interface RuntimeImageCommands {
+  readonly build: typeof runInherit;
+  readonly capture: typeof runCaptured;
+}
+
+async function inspectExportedRootfs(
+  archive: string,
+  root: string,
+  capture: typeof runCaptured,
+): Promise<ImageInventory> {
+  const listed = await capture('tar', ['-tf', archive], root);
+  if (listed.code !== 0 || listed.stdout.trim() === '') {
+    throw new SecurityAuditInternalError('runtime tar inventory cannot be read');
+  }
+  const entries = listed.stdout.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n');
+  const seen = new Set<string>();
+  const awsCdkLibPaths: string[] = [];
+  const braceExpansion: { path: string; version: string }[] = [];
+  for (const entry of entries) {
+    if (entry === '.' || entry === './') continue;
+    const path = entry.replace(/^\.\//, '').replace(/\/$/, '');
+    if (
+      path === '' ||
+      path.startsWith('/') ||
+      path.includes('\\') ||
+      [...path].some(
+        (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      ) ||
+      path.split('/').some((part) => part === '..' || part === '.' || part === '') ||
+      seen.has(path)
+    ) {
+      throw new SecurityAuditInternalError('runtime tar inventory is malformed or ambiguous');
+    }
+    seen.add(path);
+  }
+  for (const entry of entries) {
+    const path = entry.replace(/^\.\//, '').replace(/\/$/, '');
+    const match = /(?:^|\/)node_modules\/(aws-cdk-lib|brace-expansion)\/package\.json$/.exec(path);
+    if (match === null) continue;
+    // Only write selected file contents to stdout; never extract rootfs paths onto the host.
+    if (['*', '?', '['].some((character) => entry.includes(character))) {
+      throw new SecurityAuditInternalError('runtime tar inventory has an ambiguous manifest path');
+    }
+    const extracted = await capture('tar', ['-xOf', archive, '--', entry], root);
+    if (extracted.code !== 0) {
+      throw new SecurityAuditInternalError(`runtime package manifest cannot be read: ${path}`);
+    }
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(stripBom(extracted.stdout));
+    } catch {
+      throw new SecurityAuditInternalError(`runtime package manifest is malformed: ${path}`);
+    }
+    if (
+      !isRecord(manifest) ||
+      manifest.name !== match[1] ||
+      typeof manifest.version !== 'string' ||
+      parseSemver(manifest.version) === null
+    ) {
+      throw new SecurityAuditInternalError(`runtime package manifest is unclassifiable: ${path}`);
+    }
+    if (match[1] === 'aws-cdk-lib') awsCdkLibPaths.push(`/${path}`);
+    else braceExpansion.push({ path: `/${path}`, version: manifest.version });
+  }
+  return {
+    awsCdkLibPaths,
+    braceExpansion,
+    vulnerableBracePaths: braceExpansion
+      .filter((entry) => braceVersionIsActivelyVulnerable(entry.version))
+      .map((entry) => entry.path),
+  };
+}
+
+async function removeInspectionContainer(
+  containerId: string,
+  root: string,
+  capture: typeof runCaptured,
+): Promise<void> {
+  const removed = await capture('docker', ['rm', '-v', containerId], root);
+  if (removed.code !== 0) {
+    throw new SecurityAuditInternalError(`docker rm exited ${removed.code}`);
+  }
+}
+
+export async function inspectRuntimeImage(
+  root: string,
+  commands: RuntimeImageCommands = { build: runInherit, capture: runCaptured },
+): Promise<ImageInventory> {
+  const buildCode = await commands.build(
     'docker',
     [
       'build',
@@ -966,7 +1025,7 @@ async function inspectRuntimeImage(root: string): Promise<ImageInventory> {
   if (buildCode !== 0) {
     throw new SecurityAuditInternalError(`docker build exited ${buildCode}`);
   }
-  const architecture = await runCaptured(
+  const architecture = await commands.capture(
     'docker',
     ['image', 'inspect', RUNTIME_IMAGE, '--format', '{{.Architecture}}'],
     root,
@@ -976,49 +1035,39 @@ async function inspectRuntimeImage(root: string): Promise<ImageInventory> {
       `runtime image architecture is ${architecture.stdout.trim() || 'unknown'}`,
     );
   }
-  const inspected = await runCaptured(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--platform',
-      'linux/arm64',
-      '--user',
-      'root',
-      '--entrypoint',
-      'node',
-      RUNTIME_IMAGE,
-      '-e',
-      IMAGE_INSPECTOR,
-    ],
-    root,
-  );
-  if (inspected.code !== 0) {
-    throw new SecurityAuditInternalError(
-      `runtime image inspection exited ${inspected.code}: ${inspected.stderr.trim()}`,
+  const destination = await mkdtemp(join(tmpdir(), 'sceneready-runtime-'));
+  let containerId: string | undefined;
+  try {
+    const created = await commands.capture(
+      'docker',
+      ['create', '--platform', 'linux/arm64', RUNTIME_IMAGE],
+      root,
     );
-  }
-  const parsed: unknown = JSON.parse(inspected.stdout);
-  if (!isRecord(parsed) || !Array.isArray(parsed.awsCdkLib) || !Array.isArray(parsed.brace)) {
-    throw new SecurityAuditInternalError('runtime image inspection returned malformed JSON');
-  }
-  const awsCdkLibPaths = parsed.awsCdkLib.filter(
-    (path): path is string => typeof path === 'string',
-  );
-  const braceExpansion: { path: string; version: string }[] = [];
-  for (const entry of parsed.brace) {
-    if (!isRecord(entry) || typeof entry.path !== 'string' || typeof entry.version !== 'string') {
-      throw new SecurityAuditInternalError('runtime image brace-expansion entry is malformed');
+    if (created.code !== 0 || !/^[a-f0-9]{64}$/.test(created.stdout.trim())) {
+      throw new SecurityAuditInternalError(
+        'docker create failed or returned an invalid container ID',
+      );
     }
-    braceExpansion.push({ path: entry.path, version: entry.version });
+    containerId = created.stdout.trim();
+    const archive = join(destination, 'rootfs.tar');
+    const exported = await commands.capture(
+      'docker',
+      ['export', '--output', archive, containerId],
+      root,
+    );
+    if (exported.code !== 0) {
+      throw new SecurityAuditInternalError(`docker export exited ${exported.code}`);
+    }
+    return await inspectExportedRootfs(archive, root, commands.capture);
+  } finally {
+    try {
+      if (containerId !== undefined) {
+        await removeInspectionContainer(containerId, root, commands.capture);
+      }
+    } finally {
+      await rm(destination, { recursive: true, force: true });
+    }
   }
-  return {
-    awsCdkLibPaths,
-    braceExpansion,
-    vulnerableBracePaths: braceExpansion
-      .filter((entry) => braceVersionIsActivelyVulnerable(entry.version))
-      .map((entry) => entry.path),
-  };
 }
 
 async function readPackageManifests(root: string): Promise<Record<string, string>> {

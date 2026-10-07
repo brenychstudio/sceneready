@@ -1,6 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
 
@@ -15,15 +19,213 @@ import {
   findCdkSynthesisImportsInSources,
   findProhibitedToolchainRepacks,
   findRepositoryRuntimeCdkImports,
+  inspectRuntimeImage,
   officialBundledAdvisoryResolved,
   parseNpmAuditDocument,
   parseToolchainAdvisoryDocument,
   readInstalledCdkToolchain,
   type SecurityAuditEvaluationInput,
   type ToolchainAdvisory,
+  type RuntimeImageCommands,
 } from './security-audit.js';
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+
+function imageCommands(
+  options: {
+    architecture?: string;
+    manifests?: Record<string, string>;
+    inventory?: string;
+    fail?: string;
+  } = {},
+) {
+  const calls: string[][] = [];
+  let archivePath = '';
+  const commands: RuntimeImageCommands = {
+    async build(command, args) {
+      calls.push([command, ...args]);
+      return options.fail === 'build' ? 1 : 0;
+    },
+    async capture(command, args) {
+      calls.push([command, ...args]);
+      const operation = args[0];
+      if (command === 'docker' && ['run', 'start', 'exec'].includes(operation ?? '')) {
+        throw new Error('foreign architecture execution is forbidden');
+      }
+      if (operation === 'export') archivePath = args[2] ?? '';
+      if (operation === options.fail) return { code: 1, stdout: '', stderr: 'failure' };
+      let stdout = '';
+      if (command === 'docker') {
+        if (operation === 'image') stdout = options.architecture ?? 'arm64';
+        else if (operation === 'create') stdout = 'a'.repeat(64);
+        else if (!['export', 'rm'].includes(operation ?? '')) throw new Error('unexpected command');
+      } else if (command === 'tar' && operation === '-tf') {
+        stdout =
+          options.inventory ?? ['etc/', ...Object.keys(options.manifests ?? {})].join('\n') + '\n';
+      } else if (command === 'tar' && operation === '-xOf') {
+        stdout = options.manifests?.[args[3] ?? ''] ?? '';
+      } else throw new Error('unexpected command');
+      return { code: 0, stdout, stderr: '' };
+    },
+  };
+  return { commands, calls, archivePath: () => archivePath };
+}
+
+describe('static ARM64 runtime inspection', () => {
+  it('reads every nested package from a real tar archive without extracting onto the host', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sceneready-audit-test-'));
+    const execute = promisify(execFile);
+    const fixture = imageCommands();
+    try {
+      const manifests = {
+        'opt/app/node_modules/brace-expansion/package.json': {
+          name: 'brace-expansion',
+          version: '5.0.12',
+        },
+        'usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json': {
+          name: 'brace-expansion',
+          version: '5.0.9',
+        },
+        'opt/app/node_modules/aws-cdk-lib/package.json': {
+          name: 'aws-cdk-lib',
+          version: '2.272.0',
+        },
+      };
+      const rootfs = join(directory, 'rootfs');
+      for (const [path, manifest] of Object.entries(manifests)) {
+        await mkdir(dirname(join(rootfs, path)), { recursive: true });
+        await writeFile(join(rootfs, path), JSON.stringify(manifest));
+      }
+      const archive = join(directory, 'fixture.tar');
+      await execute('tar', ['-cf', archive, '-C', rootfs, '.']);
+      const inventory = await inspectRuntimeImage(repositoryRoot, {
+        build: fixture.commands.build,
+        async capture(command, args, cwd) {
+          if (command === 'tar') {
+            const result = await execute(command, [...args], { cwd });
+            return { code: 0, ...result };
+          }
+          if (args[0] === 'export') await copyFile(archive, args[2]!);
+          return fixture.commands.capture(command, args, cwd);
+        },
+      });
+      expect(inventory.awsCdkLibPaths).toEqual(['/opt/app/node_modules/aws-cdk-lib/package.json']);
+      expect(inventory.braceExpansion).toHaveLength(2);
+      expect(inventory.braceExpansion).toEqual(
+        expect.arrayContaining([
+          { path: '/opt/app/node_modules/brace-expansion/package.json', version: '5.0.12' },
+          {
+            path: '/usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json',
+            version: '5.0.9',
+          },
+        ]),
+      );
+      expect(inventory.vulnerableBracePaths).toEqual([
+        '/usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json',
+      ]);
+      expect(existsSync(dirname(fixture.archivePath()))).toBe(false);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('inspects the final exported filesystem without executing the container', async () => {
+    const fixture = imageCommands();
+    await expect(inspectRuntimeImage(repositoryRoot, fixture.commands)).resolves.toEqual({
+      awsCdkLibPaths: [],
+      braceExpansion: [],
+      vulnerableBracePaths: [],
+    });
+    expect(
+      fixture.calls.filter(([command]) => command === 'docker').map((call) => call[1]),
+    ).toEqual(['build', 'image', 'create', 'export', 'rm']);
+    expect(fixture.calls[0]).toContain('linux/arm64');
+    expect(fixture.calls[2]).toEqual([
+      'docker',
+      'create',
+      '--platform',
+      'linux/arm64',
+      'sceneready-mcp:local',
+    ]);
+    expect(existsSync(dirname(fixture.archivePath()))).toBe(false);
+  });
+
+  it('rejects a non-ARM64 image before creating a container', async () => {
+    const fixture = imageCommands({ architecture: 'amd64' });
+    await expect(inspectRuntimeImage(repositoryRoot, fixture.commands)).rejects.toThrow(
+      /architecture/,
+    );
+    expect(fixture.calls.some((call) => call[1] === 'create')).toBe(false);
+  });
+
+  it.each(['build', 'image', 'create', 'export', '-tf', '-xOf', 'rm'])(
+    'fails closed when %s fails and cleans up acquired resources',
+    async (fail) => {
+      const fixture = imageCommands({
+        fail,
+        manifests: {
+          'opt/node_modules/brace-expansion/package.json':
+            '{"name":"brace-expansion","version":"5.0.12"}',
+        },
+      });
+      await expect(inspectRuntimeImage(repositoryRoot, fixture.commands)).rejects.toThrow();
+      if (['export', '-tf', '-xOf', 'rm'].includes(fail)) {
+        expect(fixture.calls.at(-1)).toEqual(['docker', 'rm', '-v', 'a'.repeat(64)]);
+        expect(existsSync(dirname(fixture.archivePath()))).toBe(false);
+      }
+    },
+  );
+
+  it.each([
+    ['aws-cdk-lib', '2.272.0', 'FAIL'],
+    ['brace-expansion', '5.0.9', 'FAIL'],
+    ['brace-expansion', '5.0.12', 'PASS'],
+  ])(
+    'feeds %s %s exposure into the security gate despite the build-tool exception',
+    async (name, version, status) => {
+      const path = `opt/app/node_modules/${name}/package.json`;
+      const fixture = imageCommands({ manifests: { [path]: JSON.stringify({ name, version }) } });
+      const inventory = await inspectRuntimeImage(repositoryRoot, fixture.commands);
+      const result = evaluateSecurityAudit({
+        ...acceptedInput(),
+        runtimeHasAwsCdkLib: inventory.awsCdkLibPaths.length > 0,
+        runtimeVulnerableBracePaths: inventory.vulnerableBracePaths,
+      });
+      expect(result.productionRuntimeAudit).toBe(status);
+      expect(result.status).toBe(status);
+      if (name === 'brace-expansion') {
+        expect(inventory.braceExpansion).toEqual([{ path: `/${path}`, version }]);
+      }
+    },
+  );
+
+  it.each([
+    '',
+    'not-json',
+    '{}',
+    '{"name":"brace-expansion","version":5}',
+    '{"name":"brace-expansion","version":"unknown"}',
+    '{"name":"other","version":"5.0.12"}',
+  ])('rejects malformed or unclassifiable package manifests: %s', async (manifest) => {
+    const fixture = imageCommands({
+      manifests: { 'node_modules/brace-expansion/package.json': manifest },
+    });
+    await expect(inspectRuntimeImage(repositoryRoot, fixture.commands)).rejects.toThrow(/manifest/);
+  });
+
+  it.each([
+    '',
+    '../node_modules/brace-expansion/package.json\n',
+    'etc/\n\nnode_modules/brace-expansion/package.json\n',
+    '/absolute/path\n',
+    'node_modules/brace-expansion/package.json\nnode_modules/brace-expansion/package.json\n',
+  ])('rejects malformed inventories: %j', async (inventory) => {
+    const fixture = imageCommands({ inventory });
+    await expect(inspectRuntimeImage(repositoryRoot, fixture.commands)).rejects.toThrow(
+      /inventory/,
+    );
+  });
+});
 
 function acceptedException(): ToolchainAdvisory {
   return {
